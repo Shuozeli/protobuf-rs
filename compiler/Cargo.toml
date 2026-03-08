@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Protobuf compiler CLI"
 
+[lib]
+name = "protoc_rs_compiler"
+path = "src/lib.rs"
+
 [[bin]]
 name = "protoc-rs"
 path = "src/main.rs"
@@ -14,3 +18,7 @@ protoc-rs-parser = { path = "../parser" }
 protoc-rs-analyzer = { path = "../analyzer" }
 protoc-rs-annotator = { path = "../annotator" }
 protoc-rs-codegen = { path = "../codegen" }
+
+[dev-dependencies]
+tempfile = "3"
+prost-build = "0.14"

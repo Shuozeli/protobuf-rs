@@ -6,3 +6,7 @@ description = "Code generators for protobuf schemas"
 
 [dependencies]
 protoc-rs-schema = { path = "../schema" }
+heck = "0.5"
+
+[dev-dependencies]
+protoc-rs-analyzer = { path = "../analyzer" }

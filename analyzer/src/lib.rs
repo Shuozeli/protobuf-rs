@@ -941,10 +941,39 @@ impl AnalyzeContext {
         let mut files = Vec::new();
         for name in &self.load_order {
             if let Some(file) = self.loaded.get(name) {
-                files.push(file.clone());
+                let mut file = file.clone();
+                // Normalize labels: protoc always sets LABEL_OPTIONAL on fields
+                // that have no explicit label. This includes:
+                // - proto3 implicit fields (no label keyword)
+                // - editions implicit fields
+                // - oneof fields (labels forbidden in syntax, but protoc still sets LABEL_OPTIONAL)
+                Self::normalize_labels(&mut file.message_type);
+                for ext in &mut file.extension {
+                    if ext.label.is_none() {
+                        ext.label = Some(FieldLabel::Optional);
+                    }
+                }
+                files.push(file);
             }
         }
         FileDescriptorSet { file: files }
+    }
+
+    /// Set LABEL_OPTIONAL on fields that have no explicit label (proto3/editions).
+    fn normalize_labels(messages: &mut [DescriptorProto]) {
+        for msg in messages {
+            for field in &mut msg.field {
+                if field.label.is_none() {
+                    field.label = Some(FieldLabel::Optional);
+                }
+            }
+            for ext in &mut msg.extension {
+                if ext.label.is_none() {
+                    ext.label = Some(FieldLabel::Optional);
+                }
+            }
+            Self::normalize_labels(&mut msg.nested_type);
+        }
     }
 }
 

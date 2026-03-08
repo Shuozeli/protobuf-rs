@@ -1,0 +1,9 @@
+[package]
+name = "protobuf-conformance"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+protoc-rs-parser = { path = "../parser" }
+protoc-rs-schema = { path = "../schema" }

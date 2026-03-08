@@ -486,3 +486,43 @@ pub struct NamePart {
     pub name_part: String,
     pub is_extension: bool,
 }
+
+// ---------------------------------------------------------------------------
+// Into<i32> conversions for enum types
+// ---------------------------------------------------------------------------
+
+impl From<FieldType> for i32 {
+    fn from(v: FieldType) -> i32 {
+        v as i32
+    }
+}
+
+impl From<FieldLabel> for i32 {
+    fn from(v: FieldLabel) -> i32 {
+        v as i32
+    }
+}
+
+impl From<OptimizeMode> for i32 {
+    fn from(v: OptimizeMode) -> i32 {
+        v as i32
+    }
+}
+
+impl From<FieldCType> for i32 {
+    fn from(v: FieldCType) -> i32 {
+        v as i32
+    }
+}
+
+impl From<FieldJsType> for i32 {
+    fn from(v: FieldJsType) -> i32 {
+        v as i32
+    }
+}
+
+impl From<IdempotencyLevel> for i32 {
+    fn from(v: IdempotencyLevel) -> i32 {
+        v as i32
+    }
+}

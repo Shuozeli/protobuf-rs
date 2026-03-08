@@ -1,2 +1,2 @@
-// Code generators for protobuf schemas.
-// TODO: Phase 4
+pub mod rust_gen;
+pub use rust_gen::{generate_rust, CodeGenError};

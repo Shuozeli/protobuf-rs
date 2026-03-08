@@ -269,19 +269,19 @@ pub fn generate_schema(rng: &mut StdRng, config: &GenConfig) -> SchemaIR {
 
 fn generate_enum(rng: &mut StdRng, name: &str, config: &GenConfig) -> EnumDef {
     let num_values = rng.gen_range(2..=config.max_enum_values);
-    let mut used_names = Vec::new();
+    let mut used_base_names = Vec::new();
     let mut values = Vec::new();
 
     // Proto3 requires first value to be 0
     let prefix = name.to_uppercase();
     let zero_name = format!("{prefix}_UNKNOWN");
-    values.push((zero_name.clone(), 0));
-    used_names.push(zero_name);
+    values.push((zero_name, 0));
+    used_base_names.push("UNKNOWN".to_string());
 
     for i in 1..num_values {
-        let base = pick_unique_name(rng, ENUM_VALUE_NAMES, &used_names);
+        let base = pick_unique_name(rng, ENUM_VALUE_NAMES, &used_base_names);
+        used_base_names.push(base.clone());
         let full_name = format!("{prefix}_{base}");
-        used_names.push(full_name.clone());
         values.push((full_name, i as i32));
     }
 

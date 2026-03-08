@@ -1,0 +1,14 @@
+[package]
+name = "protoc-rs-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "WASM bindings for the protobuf Rust compiler"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+protoc-rs-analyzer = { path = "../analyzer" }
+protoc-rs-codegen = { path = "../codegen" }
+wasm-bindgen = "0.2"
+serde_json = "1"

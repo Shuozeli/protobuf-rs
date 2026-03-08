@@ -7,3 +7,7 @@ description = "Protobuf binary walker with byte-level annotation"
 [dependencies]
 protoc-rs-schema = { path = "../schema" }
 thiserror = "2"
+
+[dev-dependencies]
+protoc-rs-analyzer = { path = "../analyzer" }
+protoc-rs-proto-gen = { path = "../proto-gen" }
