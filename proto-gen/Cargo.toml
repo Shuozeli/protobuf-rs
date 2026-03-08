@@ -1,0 +1,8 @@
+[package]
+name = "protoc-rs-proto-gen"
+version = "0.1.0"
+edition = "2021"
+description = "Random protobuf schema and binary data generator"
+
+[dependencies]
+rand = "0.8"

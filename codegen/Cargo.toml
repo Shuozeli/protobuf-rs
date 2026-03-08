@@ -1,0 +1,8 @@
+[package]
+name = "protoc-rs-codegen"
+version = "0.1.0"
+edition = "2021"
+description = "Code generators for protobuf schemas"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }

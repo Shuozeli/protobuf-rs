@@ -1,0 +1,8 @@
+[package]
+name = "protoc-rs-parser"
+version = "0.1.0"
+edition = "2021"
+description = "Hand-written recursive descent parser for .proto files"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }

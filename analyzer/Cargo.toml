@@ -1,0 +1,12 @@
+[package]
+name = "protoc-rs-analyzer"
+version = "0.1.0"
+edition = "2021"
+description = "Semantic analysis for protobuf schemas"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }
+protoc-rs-parser = { path = "../parser" }
+
+[dev-dependencies]
+protoc-rs-parser = { path = "../parser" }

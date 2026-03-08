@@ -1,0 +1,9 @@
+[package]
+name = "protoc-rs-annotator"
+version = "0.1.0"
+edition = "2021"
+description = "Protobuf binary walker with byte-level annotation"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }
+thiserror = "2"

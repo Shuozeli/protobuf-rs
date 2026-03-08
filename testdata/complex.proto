@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package test.complex;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+message User {
+    string id = 1;
+    string name = 2;
+    string email = 3;
+    UserStatus status = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+    repeated string roles = 7;
+    map<string, string> metadata = 8;
+    repeated Address addresses = 9;
+
+    oneof contact_method {
+        string phone = 10;
+        string mobile = 11;
+        string fax = 12;
+    }
+
+    message Address {
+        string street = 1;
+        string city = 2;
+        string state = 3;
+        string zip = 4;
+        string country = 5;
+        AddressType type = 6;
+
+        enum AddressType {
+            ADDRESS_TYPE_UNSPECIFIED = 0;
+            HOME = 1;
+            WORK = 2;
+            OTHER = 3;
+        }
+    }
+
+    reserved 100, 101;
+    reserved "old_field", "deprecated_field";
+}
+
+enum UserStatus {
+    USER_STATUS_UNSPECIFIED = 0;
+    ACTIVE = 1;
+    INACTIVE = 2;
+    SUSPENDED = 3;
+    DELETED = 4;
+}
+
+message UserEvent {
+    string user_id = 1;
+    EventType type = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    google.protobuf.Any payload = 4;
+    map<string, string> labels = 5;
+
+    enum EventType {
+        EVENT_TYPE_UNSPECIFIED = 0;
+        CREATED = 1;
+        UPDATED = 2;
+        DELETED = 3;
+        LOGIN = 4;
+        LOGOUT = 5;
+    }
+}
+
+service UserService {
+    rpc GetUser (GetUserRequest) returns (User);
+    rpc ListUsers (ListUsersRequest) returns (ListUsersResponse);
+    rpc CreateUser (CreateUserRequest) returns (User);
+    rpc UpdateUser (UpdateUserRequest) returns (User);
+    rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse);
+    rpc WatchUsers (WatchUsersRequest) returns (stream UserEvent);
+}
+
+message GetUserRequest {
+    string id = 1;
+}
+
+message ListUsersRequest {
+    int32 page_size = 1;
+    string page_token = 2;
+    string filter = 3;
+    string order_by = 4;
+}
+
+message ListUsersResponse {
+    repeated User users = 1;
+    string next_page_token = 2;
+    int32 total_size = 3;
+}
+
+message CreateUserRequest {
+    User user = 1;
+}
+
+message UpdateUserRequest {
+    User user = 1;
+    google.protobuf.Timestamp update_time = 2;
+}
+
+message DeleteUserRequest {
+    string id = 1;
+}
+
+message DeleteUserResponse {}

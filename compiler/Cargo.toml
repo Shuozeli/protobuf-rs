@@ -1,0 +1,16 @@
+[package]
+name = "protoc-rs-compiler"
+version = "0.1.0"
+edition = "2021"
+description = "Protobuf compiler CLI"
+
+[[bin]]
+name = "protoc-rs"
+path = "src/main.rs"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }
+protoc-rs-parser = { path = "../parser" }
+protoc-rs-analyzer = { path = "../analyzer" }
+protoc-rs-annotator = { path = "../annotator" }
+protoc-rs-codegen = { path = "../codegen" }

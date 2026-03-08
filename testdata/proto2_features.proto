@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package test.proto2;
+
+message LegacyMessage {
+    required string name = 1;
+    optional int32 id = 2 [default = -1];
+    optional string email = 3;
+    repeated string tags = 4;
+    optional bool active = 5 [default = true];
+    optional double score = 6 [default = 3.14];
+
+    optional group MyGroup = 7 {
+        optional int32 a = 8;
+        optional string b = 9;
+    }
+
+    extensions 100 to 199;
+    extensions 1000 to max;
+
+    reserved 50, 51;
+    reserved "removed_field";
+
+    enum Priority {
+        LOW = 0;
+        MEDIUM = 1;
+        HIGH = 2;
+        CRITICAL = 3;
+    }
+
+    optional Priority priority = 10 [default = MEDIUM];
+}
+
+extend LegacyMessage {
+    optional string extension_field = 100;
+    optional int32 extension_number = 101;
+}
+
+message Container {
+    repeated LegacyMessage items = 1;
+    map<string, LegacyMessage> named_items = 2;
+}

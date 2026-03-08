@@ -1,0 +1,8 @@
+[package]
+name = "protoc-rs-test-utils"
+version = "0.1.0"
+edition = "2021"
+description = "Shared test infrastructure for protobuf-rs"
+
+[dependencies]
+protoc-rs-schema = { path = "../schema" }
