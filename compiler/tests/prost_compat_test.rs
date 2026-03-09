@@ -9,8 +9,8 @@ use std::collections::HashMap;
 
 /// Generate Rust code using our codegen pipeline (analyzer -> codegen).
 fn our_codegen(proto_source: &str) -> HashMap<String, String> {
-    let fds = protoc_rs_analyzer::analyze(proto_source)
-        .expect("our analyzer failed to parse proto");
+    let fds =
+        protoc_rs_analyzer::analyze(proto_source).expect("our analyzer failed to parse proto");
     protoc_rs_codegen::generate_rust(&fds).expect("our codegen failed")
 }
 
@@ -132,8 +132,7 @@ fn extract_facts(source: &str) -> CodeFacts {
             enums.push(name);
         } else if line.starts_with("#[prost(") {
             pending_annotation = line.clone();
-        } else if line.starts_with("pub ") && line.contains(':') && !pending_annotation.is_empty()
-        {
+        } else if line.starts_with("pub ") && line.contains(':') && !pending_annotation.is_empty() {
             fields.push((pending_annotation.clone(), line.clone()));
             pending_annotation.clear();
         } else if line.starts_with("#[derive(") {
@@ -161,10 +160,7 @@ fn assert_facts_match(ours: &CodeFacts, prost: &CodeFacts, context: &str) {
     );
 
     // Compare enums
-    assert_eq!(
-        ours.enums, prost.enums,
-        "{context}: enum names differ"
-    );
+    assert_eq!(ours.enums, prost.enums, "{context}: enum names differ");
 
     // Compare fields (by annotation + type)
     if ours.fields.len() != prost.fields.len() {
@@ -178,7 +174,11 @@ fn assert_facts_match(ours: &CodeFacts, prost: &CodeFacts, context: &str) {
             eprintln!("  {ann}");
             eprintln!("  {field}");
         }
-        panic!("{context}: field count differs: ours={}, prost={}", ours.fields.len(), prost.fields.len());
+        panic!(
+            "{context}: field count differs: ours={}, prost={}",
+            ours.fields.len(),
+            prost.fields.len()
+        );
     }
 
     for (i, ((our_ann, our_field), (prost_ann, prost_field))) in
@@ -236,14 +236,20 @@ fn run_discrepancy_test(proto_source: &str, filename: &str, expected_module: &st
     let prost = prost_codegen(proto_source, filename);
 
     let our_key = format!("{expected_module}.rs");
-    let our_source = ours
-        .get(&our_key)
-        .unwrap_or_else(|| panic!("our codegen missing module {our_key}, keys: {:?}", ours.keys().collect::<Vec<_>>()));
+    let our_source = ours.get(&our_key).unwrap_or_else(|| {
+        panic!(
+            "our codegen missing module {our_key}, keys: {:?}",
+            ours.keys().collect::<Vec<_>>()
+        )
+    });
 
     let prost_key = format!("{expected_module}.rs");
-    let prost_source = prost
-        .get(&prost_key)
-        .unwrap_or_else(|| panic!("prost missing module {prost_key}, keys: {:?}", prost.keys().collect::<Vec<_>>()));
+    let prost_source = prost.get(&prost_key).unwrap_or_else(|| {
+        panic!(
+            "prost missing module {prost_key}, keys: {:?}",
+            prost.keys().collect::<Vec<_>>()
+        )
+    });
 
     eprintln!("=== OUR OUTPUT ===");
     eprintln!("{our_source}");

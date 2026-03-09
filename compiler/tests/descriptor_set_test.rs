@@ -192,10 +192,7 @@ fn protoc_descriptor_set(proto_content: &str, include_paths: &[&str]) -> Vec<u8>
 
     let output = cmd.output().expect("failed to run protoc");
     if !output.status.success() {
-        panic!(
-            "protoc failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        panic!("protoc failed: {}", String::from_utf8_lossy(&output.stderr));
     }
     std::fs::read(&out_path).unwrap()
 }
@@ -313,10 +310,7 @@ message Event {
 "#;
     let protoc_bytes = protoc_descriptor_set(proto, &[]);
     let our_bytes = our_descriptor_set(proto, &[]);
-    assert_eq!(
-        protoc_bytes, our_bytes,
-        "oneof: output differs from protoc"
-    );
+    assert_eq!(protoc_bytes, our_bytes, "oneof: output differs from protoc");
 }
 
 #[test]

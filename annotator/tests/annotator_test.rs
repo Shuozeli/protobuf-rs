@@ -72,7 +72,10 @@ fn annotate_random_binaries_no_errors() {
     // Some seeds produce schemas with duplicate enum values (proto-gen bug),
     // causing analyze errors. These are not annotator failures.
     // Count only walk errors (not analyze errors) as real failures.
-    let walk_failures: Vec<_> = failures.iter().filter(|f| f.contains("walk error")).collect();
+    let walk_failures: Vec<_> = failures
+        .iter()
+        .filter(|f| f.contains("walk error"))
+        .collect();
     assert!(
         walk_failures.is_empty(),
         "Walk failures (annotator bugs): {:?}",
@@ -96,7 +99,7 @@ fn annotate_known_binary_full_coverage() {
     // Person { name: "Bob", id: 7 }
     let mut data = Vec::new();
     data.push(0x0A); // field 1, LEN
-    data.push(3);    // length
+    data.push(3); // length
     data.extend_from_slice(b"Bob");
     data.push(0x10); // field 2, varint
     data.push(7);
@@ -170,12 +173,13 @@ fn annotate_nested_message_recursive() {
     let regions = walk_protobuf(&data, &fds, ".test.Outer").unwrap();
 
     // Should find the inner varint with value 99
-    let inner_val = regions
-        .iter()
-        .find(|r| r.value_display.contains("99"));
+    let inner_val = regions.iter().find(|r| r.value_display.contains("99"));
     assert!(inner_val.is_some(), "should find nested value 99");
 
     // Should have depth > 1 for the inner field
     let deep_regions: Vec<_> = regions.iter().filter(|r| r.depth >= 2).collect();
-    assert!(!deep_regions.is_empty(), "should have deeply nested regions");
+    assert!(
+        !deep_regions.is_empty(),
+        "should have deeply nested regions"
+    );
 }

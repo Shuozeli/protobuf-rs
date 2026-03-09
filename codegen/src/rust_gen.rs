@@ -12,9 +12,7 @@ use protoc_rs_schema::*;
 ///
 /// Returns a map from module path (e.g. `"my.package"`) to generated Rust source code.
 /// Files without a package use an empty string key.
-pub fn generate_rust(
-    fds: &FileDescriptorSet,
-) -> Result<HashMap<String, String>, CodeGenError> {
+pub fn generate_rust(fds: &FileDescriptorSet) -> Result<HashMap<String, String>, CodeGenError> {
     let mut result = HashMap::new();
     for file in &fds.file {
         let package = file.package.as_deref().unwrap_or("");
@@ -183,7 +181,7 @@ impl RustGen {
         self.push_line("}");
 
         // Nested mod for nested types, enums, and oneof enums
-        let has_nested = !msg.nested_type.iter().all(|m| is_map_entry(m))
+        let has_nested = !msg.nested_type.iter().all(is_map_entry)
             || !msg.enum_type.is_empty()
             || !oneof_groups.is_empty();
 
@@ -230,7 +228,10 @@ impl RustGen {
         field: &FieldDescriptorProto,
         parent_msg: &DescriptorProto,
     ) -> Result<(), CodeGenError> {
-        let name = field.name.as_deref().ok_or(CodeGenError::MissingFieldName)?;
+        let name = field
+            .name
+            .as_deref()
+            .ok_or(CodeGenError::MissingFieldName)?;
         let tag = field.number.unwrap_or(0);
         let rust_name = to_snake(name);
         let label = field.label.unwrap_or(FieldLabel::Optional);
@@ -238,12 +239,12 @@ impl RustGen {
         // Check if this is a map field
         if let Some((key_field, val_field)) = find_map_entry(field, parent_msg) {
             let key_tag = prost_type_tag(key_field.r#type.unwrap_or(FieldType::Int32));
-            let val_tag = prost_type_tag_for_map_value(&val_field, &self.current_fqn_prefix());
+            let val_tag = prost_type_tag_for_map_value(val_field, &self.current_fqn_prefix());
             self.push_line(&format!(
                 "#[prost(map = \"{key_tag}, {val_tag}\", tag = \"{tag}\")]"
             ));
             let key_type = rust_type(key_field.r#type.unwrap_or(FieldType::Int32));
-            let val_type = rust_map_value_type(&val_field, &self.current_fqn_prefix());
+            let val_type = rust_map_value_type(val_field, &self.current_fqn_prefix());
             self.push_line(&format!(
                 "pub {rust_name}: ::std::collections::HashMap<{key_type}, {val_type}>,"
             ));
@@ -359,9 +360,7 @@ impl RustGen {
             }
             let stripped = strip_enum_prefix(name, val_name);
             let rust_variant = to_upper_camel(&stripped);
-            self.push_line(&format!(
-                "Self::{rust_variant} => \"{val_name}\","
-            ));
+            self.push_line(&format!("Self::{rust_variant} => \"{val_name}\","));
         }
         self.indent -= 1;
         self.push_line("}");
@@ -381,9 +380,7 @@ impl RustGen {
             }
             let stripped = strip_enum_prefix(name, val_name);
             let rust_variant = to_upper_camel(&stripped);
-            self.push_line(&format!(
-                "\"{val_name}\" => Some(Self::{rust_variant}),"
-            ));
+            self.push_line(&format!("\"{val_name}\" => Some(Self::{rust_variant}),"));
         }
         self.push_line("_ => None,");
         self.indent -= 1;
@@ -446,9 +443,12 @@ impl RustGen {
 
 /// Partition fields into regular fields and oneof groups.
 /// Proto3 optional fields (with synthetic oneofs) are treated as regular fields.
-fn partition_fields<'a>(
-    msg: &'a DescriptorProto,
-) -> (Vec<&'a FieldDescriptorProto>, Vec<(i32, Vec<&'a FieldDescriptorProto>)>) {
+fn partition_fields(
+    msg: &DescriptorProto,
+) -> (
+    Vec<&FieldDescriptorProto>,
+    Vec<(i32, Vec<&FieldDescriptorProto>)>,
+) {
     let mut regular = Vec::new();
     let mut oneof_map: HashMap<i32, Vec<&FieldDescriptorProto>> = HashMap::new();
 
@@ -463,8 +463,7 @@ fn partition_fields<'a>(
         }
     }
 
-    let mut oneof_groups: Vec<(i32, Vec<&FieldDescriptorProto>)> =
-        oneof_map.into_iter().collect();
+    let mut oneof_groups: Vec<(i32, Vec<&FieldDescriptorProto>)> = oneof_map.into_iter().collect();
     oneof_groups.sort_by_key(|(idx, _)| *idx);
 
     (regular, oneof_groups)
@@ -652,10 +651,10 @@ fn sanitize_keyword(name: &str) -> String {
         "self" | "super" => format!("{name}_"),
         "as" | "break" | "const" | "continue" | "crate" | "else" | "enum" | "extern" | "false"
         | "fn" | "for" | "if" | "impl" | "in" | "let" | "loop" | "match" | "mod" | "move"
-        | "mut" | "pub" | "ref" | "return" | "Self" | "static" | "struct"
-        | "trait" | "true" | "type" | "unsafe" | "use" | "where" | "while" | "async"
-        | "await" | "dyn" | "abstract" | "become" | "box" | "do" | "final" | "macro"
-        | "override" | "priv" | "typeof" | "unsized" | "virtual" | "yield" | "try" => {
+        | "mut" | "pub" | "ref" | "return" | "Self" | "static" | "struct" | "trait" | "true"
+        | "type" | "unsafe" | "use" | "where" | "while" | "async" | "await" | "dyn"
+        | "abstract" | "become" | "box" | "do" | "final" | "macro" | "override" | "priv"
+        | "typeof" | "unsized" | "virtual" | "yield" | "try" => {
             format!("r#{name}")
         }
         _ => name.to_string(),
@@ -668,10 +667,9 @@ fn sanitize_keyword(name: &str) -> String {
 /// E.g., strip_enum_prefix("Color", "RED") -> "RED" (no prefix match)
 fn strip_enum_prefix(enum_name: &str, value_name: &str) -> String {
     let prefix = enum_name.to_snake_case().to_uppercase();
-    let stripped = if value_name.starts_with(&prefix) {
-        let rest = &value_name[prefix.len()..];
-        if rest.starts_with('_') {
-            &rest[1..]
+    let stripped = if let Some(rest) = value_name.strip_prefix(&prefix) {
+        if let Some(without_underscore) = rest.strip_prefix('_') {
+            without_underscore
         } else {
             value_name
         }
@@ -693,10 +691,9 @@ fn fqn_to_rust_path(fqn: &str, current_package: &str) -> String {
     let stripped = fqn.strip_prefix('.').unwrap_or(fqn);
 
     // Strip the current package prefix to produce relative paths
-    let relative = if !current_package.is_empty() && stripped.starts_with(current_package) {
-        let rest = &stripped[current_package.len()..];
-        if rest.starts_with('.') {
-            &rest[1..]
+    let relative = if let Some(rest) = stripped.strip_prefix(current_package) {
+        if let Some(without_dot) = rest.strip_prefix('.') {
+            without_dot
         } else if rest.is_empty() {
             rest
         } else {
@@ -765,10 +762,7 @@ mod tests {
         // Without package, full path preserved
         assert_eq!(fqn_to_rust_path(".Foo", ""), "Foo");
         // Cross-package reference keeps prefix
-        assert_eq!(
-            fqn_to_rust_path(".other.Thing", "test"),
-            "other::Thing"
-        );
+        assert_eq!(fqn_to_rust_path(".other.Thing", "test"), "other::Thing");
     }
 
     #[test]
@@ -1138,7 +1132,8 @@ mod tests {
         assert!(source.contains("pub struct Person"));
         assert!(source.contains("pub name: ::prost::alloc::string::String,"));
         assert!(source.contains("pub id: i32,"));
-        assert!(source.contains("pub emails: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,"));
+        assert!(source
+            .contains("pub emails: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,"));
         assert!(source.contains("pub favorite_color: i32,"));
     }
 }

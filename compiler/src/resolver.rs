@@ -74,7 +74,10 @@ mod tests {
 
         let resolver = FsResolver::new(vec![dir_a, dir_b]);
         // Should find the first one
-        assert_eq!(resolver.resolve("shared.proto"), Some("// from a".to_string()));
+        assert_eq!(
+            resolver.resolve("shared.proto"),
+            Some("// from a".to_string())
+        );
     }
 
     #[test]

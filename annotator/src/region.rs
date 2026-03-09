@@ -29,36 +29,21 @@ pub struct AnnotatedRegion {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProtoRegionKind {
     /// Root or embedded message.
-    Message {
-        type_name: String,
-    },
+    Message { type_name: String },
     /// Tag varint (field_number + wire_type).
-    Tag {
-        field_number: u32,
-        wire_type: u32,
-    },
+    Tag { field_number: u32, wire_type: u32 },
     /// Length prefix varint.
     LengthPrefix,
     /// Varint-encoded scalar (int32, int64, uint32, uint64, sint32, sint64, bool, enum).
-    Varint {
-        field_name: String,
-    },
+    Varint { field_name: String },
     /// Fixed 32-bit value (fixed32, sfixed32, float).
-    Fixed32 {
-        field_name: String,
-    },
+    Fixed32 { field_name: String },
     /// Fixed 64-bit value (fixed64, sfixed64, double).
-    Fixed64 {
-        field_name: String,
-    },
+    Fixed64 { field_name: String },
     /// UTF-8 string payload.
-    StringData {
-        field_name: String,
-    },
+    StringData { field_name: String },
     /// Raw bytes payload.
-    BytesData {
-        field_name: String,
-    },
+    BytesData { field_name: String },
     /// Packed repeated field.
     PackedRepeated {
         field_name: String,
@@ -71,10 +56,7 @@ pub enum ProtoRegionKind {
         value_name: String,
     },
     /// Field not found in schema.
-    UnknownField {
-        field_number: u32,
-        wire_type: u32,
-    },
+    UnknownField { field_number: u32, wire_type: u32 },
 }
 
 impl ProtoRegionKind {
@@ -98,17 +80,17 @@ impl ProtoRegionKind {
     /// RGB color for UI rendering.
     pub fn color(&self) -> (u8, u8, u8) {
         match self {
-            Self::Message { .. } => (59, 130, 246),    // blue
-            Self::Tag { .. } => (100, 116, 139),       // slate
-            Self::LengthPrefix => (148, 163, 184),     // light slate
-            Self::Varint { .. } => (34, 197, 94),      // green
-            Self::Fixed32 { .. } => (249, 115, 22),    // orange
-            Self::Fixed64 { .. } => (249, 115, 22),    // orange
-            Self::StringData { .. } => (218, 165, 32), // goldenrod
-            Self::BytesData { .. } => (218, 165, 32),  // goldenrod
+            Self::Message { .. } => (59, 130, 246),        // blue
+            Self::Tag { .. } => (100, 116, 139),           // slate
+            Self::LengthPrefix => (148, 163, 184),         // light slate
+            Self::Varint { .. } => (34, 197, 94),          // green
+            Self::Fixed32 { .. } => (249, 115, 22),        // orange
+            Self::Fixed64 { .. } => (249, 115, 22),        // orange
+            Self::StringData { .. } => (218, 165, 32),     // goldenrod
+            Self::BytesData { .. } => (218, 165, 32),      // goldenrod
             Self::PackedRepeated { .. } => (168, 85, 247), // purple
-            Self::EnumValue { .. } => (34, 197, 94),   // green (like varint)
-            Self::UnknownField { .. } => (156, 163, 175), // gray
+            Self::EnumValue { .. } => (34, 197, 94),       // green (like varint)
+            Self::UnknownField { .. } => (156, 163, 175),  // gray
         }
     }
 }

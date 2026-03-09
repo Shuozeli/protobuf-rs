@@ -102,8 +102,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                 include_paths.push(PathBuf::from(&arg["--proto_path=".len()..]));
             }
             _ if arg.starts_with("--descriptor_set_out=") => {
-                descriptor_set_out =
-                    Some(PathBuf::from(&arg["--descriptor_set_out=".len()..]));
+                descriptor_set_out = Some(PathBuf::from(&arg["--descriptor_set_out=".len()..]));
             }
             _ if arg.starts_with("--rust_out=") => {
                 rust_out = Some(PathBuf::from(&arg["--rust_out=".len()..]));
@@ -201,11 +200,7 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
             if let Some(parent) = out_path.parent() {
                 if !parent.exists() {
                     std::fs::create_dir_all(parent).map_err(|e| AnalyzeError {
-                        message: format!(
-                            "failed to create directory {}: {}",
-                            parent.display(),
-                            e
-                        ),
+                        message: format!("failed to create directory {}: {}", parent.display(), e),
                         file: None,
                         span: None,
                     })?;

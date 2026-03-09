@@ -52,14 +52,23 @@ pub fn walk_protobuf(
         depth: 0,
     });
 
-    let children =
-        walk_message_fields(data, 0, data.len(), msg, &index, &mut regions, &[short_name(&type_name)], 1)?;
+    let children = walk_message_fields(
+        data,
+        0,
+        data.len(),
+        msg,
+        &index,
+        &mut regions,
+        &[short_name(&type_name)],
+        1,
+    )?;
     regions[root_idx].children = children;
 
     Ok(regions)
 }
 
 /// Walk the fields of a single message, returning child indices.
+#[allow(clippy::too_many_arguments)]
 fn walk_message_fields(
     data: &[u8],
     start: usize,
@@ -95,7 +104,10 @@ fn walk_message_fields(
                 field_number: tag.field_number,
                 wire_type: tag.wire_type as u32,
             },
-            label: format!("tag: field {}, wire type {}", tag.field_number, tag.wire_type as u32),
+            label: format!(
+                "tag: field {}, wire type {}",
+                tag.field_number, tag.wire_type as u32
+            ),
             field_path: parent_path.to_vec(),
             value_display: format!("field={} wire={}", tag.field_number, tag.wire_type as u32),
             children: Vec::new(),
@@ -174,11 +186,34 @@ fn decode_field_value(
     depth: usize,
 ) -> Result<(Vec<usize>, usize), WalkError> {
     match tag.wire_type {
-        WireType::Varint => decode_varint_field(data, offset, field_info, field_name, index, regions, parent_path, depth),
-        WireType::Fixed64 => decode_fixed64_field(data, offset, field_name, regions, parent_path, depth),
-        WireType::Fixed32 => decode_fixed32_field(data, offset, field_name, regions, parent_path, depth),
+        WireType::Varint => decode_varint_field(
+            data,
+            offset,
+            field_info,
+            field_name,
+            index,
+            regions,
+            parent_path,
+            depth,
+        ),
+        WireType::Fixed64 => {
+            decode_fixed64_field(data, offset, field_name, regions, parent_path, depth)
+        }
+        WireType::Fixed32 => {
+            decode_fixed32_field(data, offset, field_name, regions, parent_path, depth)
+        }
         WireType::LengthDelimited => decode_length_delimited_field(
-            data, offset, msg_end, tag, field_info, field_name, parent_msg, index, regions, parent_path, depth,
+            data,
+            offset,
+            msg_end,
+            tag,
+            field_info,
+            field_name,
+            parent_msg,
+            index,
+            regions,
+            parent_path,
+            depth,
         ),
         WireType::StartGroup => {
             // Skip group (deprecated)
@@ -202,6 +237,7 @@ fn decode_field_value(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn decode_varint_field(
     data: &[u8],
     offset: usize,
@@ -273,7 +309,10 @@ fn decode_varint_field(
         }
         _ => {
             // uint32, uint64, or unknown
-            (format!("{}", raw_value), format!("{}: {}", field_name, raw_value))
+            (
+                format!("{}", raw_value),
+                format!("{}: {}", field_name, raw_value),
+            )
         }
     };
 
@@ -308,11 +347,12 @@ fn decode_fixed64_field(
     let val_u64 = u64::from_le_bytes(bytes.try_into().unwrap());
     let val_f64 = f64::from_le_bytes(bytes.try_into().unwrap());
 
-    let display = if val_f64.is_finite() && val_f64 != 0.0 && val_f64.abs() < 1e15 && val_f64.abs() > 1e-10 {
-        format!("{}", val_f64)
-    } else {
-        format!("{}", val_u64)
-    };
+    let display =
+        if val_f64.is_finite() && val_f64 != 0.0 && val_f64.abs() < 1e15 && val_f64.abs() > 1e-10 {
+            format!("{}", val_f64)
+        } else {
+            format!("{}", val_u64)
+        };
 
     let idx = regions.len();
     regions.push(AnnotatedRegion {
@@ -345,11 +385,12 @@ fn decode_fixed32_field(
     let val_u32 = u32::from_le_bytes(bytes.try_into().unwrap());
     let val_f32 = f32::from_le_bytes(bytes.try_into().unwrap());
 
-    let display = if val_f32.is_finite() && val_f32 != 0.0 && val_f32.abs() < 1e10 && val_f32.abs() > 1e-6 {
-        format!("{}", val_f32)
-    } else {
-        format!("{}", val_u32)
-    };
+    let display =
+        if val_f32.is_finite() && val_f32 != 0.0 && val_f32.abs() < 1e10 && val_f32.abs() > 1e-6 {
+            format!("{}", val_f32)
+        } else {
+            format!("{}", val_u32)
+        };
 
     let idx = regions.len();
     regions.push(AnnotatedRegion {
@@ -440,7 +481,14 @@ fn decode_length_delimited_field(
                 });
 
                 let msg_children = walk_message_fields(
-                    data, data_start, data_end, msg_desc, index, regions, &path, depth + 1,
+                    data,
+                    data_start,
+                    data_end,
+                    msg_desc,
+                    index,
+                    regions,
+                    &path,
+                    depth + 1,
                 )?;
                 regions[msg_idx].children = msg_children;
 
@@ -496,14 +544,29 @@ fn decode_length_delimited_field(
         _ if is_packable_type(field_info) => {
             // Packed repeated field
             decode_packed_field(
-                data, data_start, data_end, field_info, field_name, index,
-                regions, parent_path, depth, len_idx,
+                data,
+                data_start,
+                data_end,
+                field_info,
+                field_name,
+                index,
+                regions,
+                parent_path,
+                depth,
+                len_idx,
             )
         }
         _ if field_info.is_none() => {
             // Unknown field -- try to interpret
             decode_unknown_length_delimited(
-                data, data_start, data_end, tag.field_number, regions, parent_path, depth, len_idx,
+                data,
+                data_start,
+                data_end,
+                tag.field_number,
+                regions,
+                parent_path,
+                depth,
+                len_idx,
             )
         }
         _ => {
@@ -628,11 +691,7 @@ fn decode_packed_field(
         }
     }
 
-    let values_str = if element_indices.len() <= 5 {
-        format!("[{} elements]", element_indices.len())
-    } else {
-        format!("[{} elements]", element_indices.len())
-    };
+    let values_str = format!("[{} elements]", element_indices.len());
     regions[packed_idx].children = element_indices;
     regions[packed_idx].value_display = values_str;
 
@@ -655,7 +714,9 @@ fn decode_unknown_length_delimited(
 
     // Try UTF-8 string
     if let Ok(s) = std::str::from_utf8(payload) {
-        if s.chars().all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t') {
+        if s.chars()
+            .all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t')
+        {
             let idx = regions.len();
             regions.push(AnnotatedRegion {
                 byte_range: start..end,
@@ -936,10 +997,12 @@ mod tests {
         let regions = walk_protobuf(&data, &schema, ".test.Person").unwrap();
 
         // Find the string data region for "name"
-        let string_region = regions.iter().find(|r| matches!(
-            &r.kind,
-            ProtoRegionKind::StringData { field_name } if field_name == "name"
-        ));
+        let string_region = regions.iter().find(|r| {
+            matches!(
+                &r.kind,
+                ProtoRegionKind::StringData { field_name } if field_name == "name"
+            )
+        });
         assert!(string_region.is_some());
         let sr = string_region.unwrap();
         assert!(sr.value_display.contains("Alice"));
@@ -952,10 +1015,12 @@ mod tests {
         let regions = walk_protobuf(&data, &schema, ".test.Person").unwrap();
 
         // Find the varint region for "id"
-        let varint_region = regions.iter().find(|r| matches!(
-            &r.kind,
-            ProtoRegionKind::Varint { field_name } if field_name == "id"
-        ));
+        let varint_region = regions.iter().find(|r| {
+            matches!(
+                &r.kind,
+                ProtoRegionKind::Varint { field_name } if field_name == "id"
+            )
+        });
         assert!(varint_region.is_some());
         assert!(varint_region.unwrap().value_display.contains("42"));
     }
@@ -966,8 +1031,8 @@ mod tests {
         // Encode field 99 (not in schema) as varint
         let mut data = Vec::new();
         data.push((99 << 3) | 0); // field 99, varint
-        // 99 << 3 = 792, | 0 = 792. But that's > 127, need multi-byte tag
-        // Let me just use a small field number not in schema
+                                  // 99 << 3 = 792, | 0 = 792. But that's > 127, need multi-byte tag
+                                  // Let me just use a small field number not in schema
         data.clear();
         data.push((10 << 3) | 0); // field 10, varint -- tag = 0x50
         data.push(7);
@@ -1023,10 +1088,12 @@ mod tests {
         let regions = walk_protobuf(&data, &schema, ".test.Outer").unwrap();
 
         // Should find the nested varint with value 123
-        let inner_varint = regions.iter().find(|r| matches!(
-            &r.kind,
-            ProtoRegionKind::Varint { field_name } if field_name == "value"
-        ));
+        let inner_varint = regions.iter().find(|r| {
+            matches!(
+                &r.kind,
+                ProtoRegionKind::Varint { field_name } if field_name == "value"
+            )
+        });
         assert!(inner_varint.is_some());
         assert!(inner_varint.unwrap().value_display.contains("123"));
     }
@@ -1075,10 +1142,12 @@ mod tests {
 
         let regions = walk_protobuf(&data, &schema, ".test.Msg").unwrap();
 
-        let enum_region = regions.iter().find(|r| matches!(
-            &r.kind,
-            ProtoRegionKind::EnumValue { value_name, .. } if value_name == "ACTIVE"
-        ));
+        let enum_region = regions.iter().find(|r| {
+            matches!(
+                &r.kind,
+                ProtoRegionKind::EnumValue { value_name, .. } if value_name == "ACTIVE"
+            )
+        });
         assert!(enum_region.is_some());
     }
 
@@ -1109,10 +1178,12 @@ mod tests {
 
         let regions = walk_protobuf(&data, &schema, ".test.Msg").unwrap();
 
-        let packed = regions.iter().find(|r| matches!(
-            &r.kind,
-            ProtoRegionKind::PackedRepeated { field_name, .. } if field_name == "values"
-        ));
+        let packed = regions.iter().find(|r| {
+            matches!(
+                &r.kind,
+                ProtoRegionKind::PackedRepeated { field_name, .. } if field_name == "values"
+            )
+        });
         assert!(packed.is_some());
         assert_eq!(packed.unwrap().children.len(), 3); // 3 elements
     }

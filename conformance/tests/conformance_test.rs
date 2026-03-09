@@ -38,7 +38,11 @@ fn find_all_protos(dir: &Path) -> Vec<PathBuf> {
 fn tier1_all_protos_parse() {
     let dir = protos_dir();
     let protos = find_all_protos(&dir);
-    assert!(!protos.is_empty(), "No .proto files found in {}", dir.display());
+    assert!(
+        !protos.is_empty(),
+        "No .proto files found in {}",
+        dir.display()
+    );
 
     let mut failures = Vec::new();
     let mut successes = 0;
@@ -149,7 +153,10 @@ fn tier2_compare_with_protoc() {
     eprintln!("  Both pass:       {both_pass}");
     eprintln!("  Both fail:       {both_fail}");
     eprintln!("  Only protoc:     {} (BUGS)", only_protoc_pass.len());
-    eprintln!("  Only us:         {} (expected, import errors)", only_we_pass.len());
+    eprintln!(
+        "  Only us:         {} (expected, import errors)",
+        only_we_pass.len()
+    );
     eprintln!();
 
     if !only_we_pass.is_empty() {
@@ -187,54 +194,126 @@ fn tier2b_structural_validation() {
     let mut issues = Vec::new();
 
     // Files with known structure we can validate
-    let checks: Vec<(&str, Box<dyn Fn(&protoc_rs_schema::FileDescriptorProto) -> Option<String>>)> = vec![
-        ("googleapis/google/api/http.proto", Box::new(|fd| {
-            // Should have HttpRule message with pattern oneof
-            let has_http_rule = fd.message_type.iter().any(|m| m.name.as_deref() == Some("HttpRule"));
-            if !has_http_rule {
-                Some("missing HttpRule message".to_string())
-            } else {
+    let checks: Vec<(
+        &str,
+        Box<dyn Fn(&protoc_rs_schema::FileDescriptorProto) -> Option<String>>,
+    )> = vec![
+        (
+            "googleapis/google/api/http.proto",
+            Box::new(|fd| {
+                // Should have HttpRule message with pattern oneof
+                let has_http_rule = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("HttpRule"));
+                if !has_http_rule {
+                    Some("missing HttpRule message".to_string())
+                } else {
+                    None
+                }
+            }),
+        ),
+        (
+            "googleapis/google/rpc/status.proto",
+            Box::new(|fd| {
+                let has_status = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("Status"));
+                if !has_status {
+                    Some("missing Status message".to_string())
+                } else {
+                    None
+                }
+            }),
+        ),
+        (
+            "grpc/grpc/health/v1/health.proto",
+            Box::new(|fd| {
+                let has_service = fd
+                    .service
+                    .iter()
+                    .any(|s| s.name.as_deref() == Some("Health"));
+                let has_req = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("HealthCheckRequest"));
+                let has_resp = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("HealthCheckResponse"));
+                if !has_service {
+                    return Some("missing Health service".to_string());
+                }
+                if !has_req {
+                    return Some("missing HealthCheckRequest".to_string());
+                }
+                if !has_resp {
+                    return Some("missing HealthCheckResponse".to_string());
+                }
                 None
-            }
-        })),
-        ("googleapis/google/rpc/status.proto", Box::new(|fd| {
-            let has_status = fd.message_type.iter().any(|m| m.name.as_deref() == Some("Status"));
-            if !has_status {
-                Some("missing Status message".to_string())
-            } else {
+            }),
+        ),
+        (
+            "opentelemetry/opentelemetry/proto/common/v1/common.proto",
+            Box::new(|fd| {
+                let has_any_value = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("AnyValue"));
+                let has_kv = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("KeyValue"));
+                if !has_any_value {
+                    return Some("missing AnyValue message".to_string());
+                }
+                if !has_kv {
+                    return Some("missing KeyValue message".to_string());
+                }
                 None
-            }
-        })),
-        ("grpc/grpc/health/v1/health.proto", Box::new(|fd| {
-            let has_service = fd.service.iter().any(|s| s.name.as_deref() == Some("Health"));
-            let has_req = fd.message_type.iter().any(|m| m.name.as_deref() == Some("HealthCheckRequest"));
-            let has_resp = fd.message_type.iter().any(|m| m.name.as_deref() == Some("HealthCheckResponse"));
-            if !has_service { return Some("missing Health service".to_string()); }
-            if !has_req { return Some("missing HealthCheckRequest".to_string()); }
-            if !has_resp { return Some("missing HealthCheckResponse".to_string()); }
-            None
-        })),
-        ("opentelemetry/opentelemetry/proto/common/v1/common.proto", Box::new(|fd| {
-            let has_any_value = fd.message_type.iter().any(|m| m.name.as_deref() == Some("AnyValue"));
-            let has_kv = fd.message_type.iter().any(|m| m.name.as_deref() == Some("KeyValue"));
-            if !has_any_value { return Some("missing AnyValue message".to_string()); }
-            if !has_kv { return Some("missing KeyValue message".to_string()); }
-            None
-        })),
-        ("prometheus/io/prometheus/client/metrics.proto", Box::new(|fd| {
-            let has_metric_family = fd.message_type.iter().any(|m| m.name.as_deref() == Some("MetricFamily"));
-            let has_metric = fd.message_type.iter().any(|m| m.name.as_deref() == Some("Metric"));
-            if !has_metric_family { return Some("missing MetricFamily".to_string()); }
-            if !has_metric { return Some("missing Metric".to_string()); }
-            None
-        })),
-        ("etcd/etcd/api/mvccpb/kv.proto", Box::new(|fd| {
-            let has_kv = fd.message_type.iter().any(|m| m.name.as_deref() == Some("KeyValue"));
-            let has_event = fd.message_type.iter().any(|m| m.name.as_deref() == Some("Event"));
-            if !has_kv { return Some("missing KeyValue".to_string()); }
-            if !has_event { return Some("missing Event".to_string()); }
-            None
-        })),
+            }),
+        ),
+        (
+            "prometheus/io/prometheus/client/metrics.proto",
+            Box::new(|fd| {
+                let has_metric_family = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("MetricFamily"));
+                let has_metric = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("Metric"));
+                if !has_metric_family {
+                    return Some("missing MetricFamily".to_string());
+                }
+                if !has_metric {
+                    return Some("missing Metric".to_string());
+                }
+                None
+            }),
+        ),
+        (
+            "etcd/etcd/api/mvccpb/kv.proto",
+            Box::new(|fd| {
+                let has_kv = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("KeyValue"));
+                let has_event = fd
+                    .message_type
+                    .iter()
+                    .any(|m| m.name.as_deref() == Some("Event"));
+                if !has_kv {
+                    return Some("missing KeyValue".to_string());
+                }
+                if !has_event {
+                    return Some("missing Event".to_string());
+                }
+                None
+            }),
+        ),
     ];
 
     for (rel_path, check) in &checks {

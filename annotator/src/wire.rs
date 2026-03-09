@@ -76,11 +76,10 @@ pub fn decode_tag(buf: &[u8], offset: usize) -> Result<(Tag, usize), WireError> 
     let (raw, range) = decode_varint(buf, offset)?;
     let wire_type_val = (raw & 0x07) as u32;
     let field_number = (raw >> 3) as u32;
-    let wire_type =
-        WireType::from_u32(wire_type_val).map_err(|wt| WireError::UnknownWireType {
-            wire_type: wt,
-            offset,
-        })?;
+    let wire_type = WireType::from_u32(wire_type_val).map_err(|wt| WireError::UnknownWireType {
+        wire_type: wt,
+        offset,
+    })?;
     Ok((
         Tag {
             field_number,
