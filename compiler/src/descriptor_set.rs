@@ -197,24 +197,24 @@ fn encode_descriptor_proto(msg: &DescriptorProto) -> Vec<u8> {
     }
     // 4: enum_type (repeated)
     for e in &msg.enum_type {
-        let eb = encode_enum_descriptor_proto(e);
-        encode_message_field(&mut buf, 4, &eb);
+        let enum_bytes = encode_enum_descriptor_proto(e);
+        encode_message_field(&mut buf, 4, &enum_bytes);
     }
     // 5: extension_range (repeated)
     for er in &msg.extension_range {
-        let erb = encode_extension_range(er);
-        encode_message_field(&mut buf, 5, &erb);
+        let range_bytes = encode_extension_range(er);
+        encode_message_field(&mut buf, 5, &range_bytes);
     }
     // 8: oneof_decl (repeated)
     for oneof in &msg.oneof_decl {
-        let ob = encode_oneof_descriptor_proto(oneof);
-        encode_message_field(&mut buf, 8, &ob);
+        let oneof_bytes = encode_oneof_descriptor_proto(oneof);
+        encode_message_field(&mut buf, 8, &oneof_bytes);
     }
     // 7: options
     if let Some(ref opts) = msg.options {
-        let ob = encode_message_options(opts);
-        if !ob.is_empty() {
-            encode_message_field(&mut buf, 7, &ob);
+        let opts_bytes = encode_message_options(opts);
+        if !opts_bytes.is_empty() {
+            encode_message_field(&mut buf, 7, &opts_bytes);
         }
     }
     // 9: reserved_range (repeated)

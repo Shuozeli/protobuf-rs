@@ -47,16 +47,16 @@ pub fn resolve_type_name(
         if symbols.contains_key(name) && visible.contains(name) {
             return Ok(name.to_string());
         }
-        // Check if symbol exists but not visible (defined in non-imported file)
-        if symbols.contains_key(name) {
-            return Err(AnalyzeError {
-                message: format!("type not found: {}", name),
-                file: None,
-                span: None,
-            });
-        }
+        let reason = if symbols.contains_key(name) {
+            format!(
+                "type {} exists but is not accessible from the current file (missing import?)",
+                name
+            )
+        } else {
+            format!("type not found: {}", name)
+        };
         return Err(AnalyzeError {
-            message: format!("type not found: {}", name),
+            message: reason,
             file: None,
             span: None,
         });

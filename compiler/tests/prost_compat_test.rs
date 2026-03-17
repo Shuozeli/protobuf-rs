@@ -104,8 +104,6 @@ struct CodeFacts {
     enums: Vec<String>,
     /// field_name -> (prost_annotation, rust_type)
     fields: Vec<(String, String)>,
-    #[allow(dead_code)]
-    derives: Vec<String>,
 }
 
 fn extract_facts(source: &str) -> CodeFacts {
@@ -113,7 +111,6 @@ fn extract_facts(source: &str) -> CodeFacts {
     let mut structs = Vec::new();
     let mut enums = Vec::new();
     let mut fields = Vec::new();
-    let mut derives = Vec::new();
 
     let mut pending_annotation = String::new();
 
@@ -135,8 +132,6 @@ fn extract_facts(source: &str) -> CodeFacts {
         } else if line.starts_with("pub ") && line.contains(':') && !pending_annotation.is_empty() {
             fields.push((pending_annotation.clone(), line.clone()));
             pending_annotation.clear();
-        } else if line.starts_with("#[derive(") {
-            derives.push(line.clone());
         }
     }
 
@@ -147,7 +142,6 @@ fn extract_facts(source: &str) -> CodeFacts {
         structs,
         enums,
         fields,
-        derives,
     }
 }
 

@@ -61,66 +61,28 @@ fn encode_field(
     let field_number = field.number as u32;
 
     match &field.field_type {
-        FieldTypeDef::Double => {
-            write_tag(buf, field_number, 1); // wire type 1 = 64-bit
-            let v: f64 = rng.gen_range(-1000.0..1000.0);
-            buf.extend_from_slice(&v.to_le_bytes());
-        }
-        FieldTypeDef::Float => {
-            write_tag(buf, field_number, 5); // wire type 5 = 32-bit
-            let v: f32 = rng.gen_range(-1000.0..1000.0);
-            buf.extend_from_slice(&v.to_le_bytes());
-        }
-        FieldTypeDef::Int32 => {
+        // Varint-encoded scalars (wire type 0)
+        FieldTypeDef::Int32
+        | FieldTypeDef::Int64
+        | FieldTypeDef::Uint32
+        | FieldTypeDef::Uint64
+        | FieldTypeDef::Sint32
+        | FieldTypeDef::Sint64
+        | FieldTypeDef::Bool => {
             write_tag(buf, field_number, 0);
-            write_varint(buf, rng.gen_range(-100..=100) as i64 as u64);
+            write_varint(buf, random_varint(rng, &field.field_type));
         }
-        FieldTypeDef::Int64 => {
-            write_tag(buf, field_number, 0);
-            write_varint(buf, rng.gen_range(-1000..=1000) as i64 as u64);
-        }
-        FieldTypeDef::Uint32 => {
-            write_tag(buf, field_number, 0);
-            write_varint(buf, rng.gen_range(0..=200) as u64);
-        }
-        FieldTypeDef::Uint64 => {
-            write_tag(buf, field_number, 0);
-            write_varint(buf, rng.gen_range(0..=2000) as u64);
-        }
-        FieldTypeDef::Sint32 => {
-            write_tag(buf, field_number, 0);
-            let v: i32 = rng.gen_range(-100..=100);
-            write_varint(buf, zigzag_encode_32(v));
-        }
-        FieldTypeDef::Sint64 => {
-            write_tag(buf, field_number, 0);
-            let v: i64 = rng.gen_range(-1000..=1000);
-            write_varint(buf, zigzag_encode_64(v));
-        }
-        FieldTypeDef::Fixed32 => {
+        // 32-bit fixed (wire type 5)
+        FieldTypeDef::Float | FieldTypeDef::Fixed32 | FieldTypeDef::Sfixed32 => {
             write_tag(buf, field_number, 5);
-            let v: u32 = rng.gen_range(0..=1000);
-            buf.extend_from_slice(&v.to_le_bytes());
+            buf.extend_from_slice(&random_fixed32(rng, &field.field_type));
         }
-        FieldTypeDef::Fixed64 => {
+        // 64-bit fixed (wire type 1)
+        FieldTypeDef::Double | FieldTypeDef::Fixed64 | FieldTypeDef::Sfixed64 => {
             write_tag(buf, field_number, 1);
-            let v: u64 = rng.gen_range(0..=10000);
-            buf.extend_from_slice(&v.to_le_bytes());
+            buf.extend_from_slice(&random_fixed64(rng, &field.field_type));
         }
-        FieldTypeDef::Sfixed32 => {
-            write_tag(buf, field_number, 5);
-            let v: i32 = rng.gen_range(-500..=500);
-            buf.extend_from_slice(&v.to_le_bytes());
-        }
-        FieldTypeDef::Sfixed64 => {
-            write_tag(buf, field_number, 1);
-            let v: i64 = rng.gen_range(-5000..=5000);
-            buf.extend_from_slice(&v.to_le_bytes());
-        }
-        FieldTypeDef::Bool => {
-            write_tag(buf, field_number, 0);
-            write_varint(buf, if rng.gen_bool(0.5) { 1 } else { 0 });
-        }
+        // Length-delimited (wire type 2)
         FieldTypeDef::String => {
             write_tag(buf, field_number, 2);
             let s = random_string(rng);
@@ -149,9 +111,8 @@ fn encode_field(
         }
         FieldTypeDef::Message(msg_name) => {
             if depth >= max_depth {
-                return; // prevent deep recursion
+                return;
             }
-            // Look up the message: first in parent's nested messages, then top-level
             let msg_def = parent_msg
                 .nested_messages
                 .iter()
@@ -164,6 +125,40 @@ fn encode_field(
                 buf.extend_from_slice(&inner);
             }
         }
+    }
+}
+
+/// Generate a random varint value appropriate for the given scalar type.
+fn random_varint(rng: &mut StdRng, ft: &FieldTypeDef) -> u64 {
+    match ft {
+        FieldTypeDef::Int32 => rng.gen_range(-100..=100i32) as i64 as u64,
+        FieldTypeDef::Int64 => rng.gen_range(-1000..=1000i64) as u64,
+        FieldTypeDef::Uint32 => rng.gen_range(0..=200u32) as u64,
+        FieldTypeDef::Uint64 => rng.gen_range(0..=2000u64),
+        FieldTypeDef::Sint32 => zigzag_encode_32(rng.gen_range(-100..=100)),
+        FieldTypeDef::Sint64 => zigzag_encode_64(rng.gen_range(-1000..=1000)),
+        FieldTypeDef::Bool => u64::from(rng.gen_bool(0.5)),
+        _ => 0,
+    }
+}
+
+/// Generate random 4-byte fixed-width value.
+fn random_fixed32(rng: &mut StdRng, ft: &FieldTypeDef) -> [u8; 4] {
+    match ft {
+        FieldTypeDef::Float => rng.gen_range(-1000.0..1000.0f32).to_le_bytes(),
+        FieldTypeDef::Fixed32 => rng.gen_range(0..=1000u32).to_le_bytes(),
+        FieldTypeDef::Sfixed32 => rng.gen_range(-500..=500i32).to_le_bytes(),
+        _ => [0; 4],
+    }
+}
+
+/// Generate random 8-byte fixed-width value.
+fn random_fixed64(rng: &mut StdRng, ft: &FieldTypeDef) -> [u8; 8] {
+    match ft {
+        FieldTypeDef::Double => rng.gen_range(-1000.0..1000.0f64).to_le_bytes(),
+        FieldTypeDef::Fixed64 => rng.gen_range(0..=10000u64).to_le_bytes(),
+        FieldTypeDef::Sfixed64 => rng.gen_range(-5000..=5000i64).to_le_bytes(),
+        _ => [0; 8],
     }
 }
 

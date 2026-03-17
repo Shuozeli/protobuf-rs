@@ -320,30 +320,36 @@ impl RustGen {
         let name = e.name.as_deref().ok_or(CodeGenError::MissingEnumName)?;
         let rust_name = to_upper_camel(name);
 
+        // Pre-compute deduplicated enum variants (skip aliased values)
+        let variants: Vec<(&str, i32, String)> = {
+            let mut seen_numbers = std::collections::HashSet::new();
+            e.value
+                .iter()
+                .filter_map(|val| {
+                    let val_name = val.name.as_deref().unwrap_or("UNKNOWN");
+                    let number = val.number.unwrap_or(0);
+                    if !seen_numbers.insert(number) {
+                        return None;
+                    }
+                    let stripped = strip_enum_prefix(name, val_name);
+                    let rust_variant = to_upper_camel(&stripped);
+                    Some((val_name, number, rust_variant))
+                })
+                .collect()
+        };
+
         self.push_line(
             "#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]",
         );
         self.push_line("#[repr(i32)]");
         self.push_line(&format!("pub enum {rust_name} {{"));
         self.indent += 1;
-
-        // Track seen numbers for allow_alias dedup
-        let mut seen_numbers = std::collections::HashSet::new();
-        for val in &e.value {
-            let val_name = val.name.as_deref().unwrap_or("UNKNOWN");
-            let number = val.number.unwrap_or(0);
-            if !seen_numbers.insert(number) {
-                continue; // Skip aliased values
-            }
-            let stripped = strip_enum_prefix(name, val_name);
-            let rust_variant = to_upper_camel(&stripped);
+        for (_, number, rust_variant) in &variants {
             self.push_line(&format!("{rust_variant} = {number},"));
         }
-
         self.indent -= 1;
         self.push_line("}");
 
-        // impl as_str_name / from_str_name
         self.push_line(&format!("impl {rust_name} {{"));
         self.indent += 1;
 
@@ -351,15 +357,7 @@ impl RustGen {
         self.indent += 1;
         self.push_line("match self {");
         self.indent += 1;
-        seen_numbers.clear();
-        for val in &e.value {
-            let val_name = val.name.as_deref().unwrap_or("UNKNOWN");
-            let number = val.number.unwrap_or(0);
-            if !seen_numbers.insert(number) {
-                continue;
-            }
-            let stripped = strip_enum_prefix(name, val_name);
-            let rust_variant = to_upper_camel(&stripped);
+        for (val_name, _, rust_variant) in &variants {
             self.push_line(&format!("Self::{rust_variant} => \"{val_name}\","));
         }
         self.indent -= 1;
@@ -371,15 +369,7 @@ impl RustGen {
         self.indent += 1;
         self.push_line("match value {");
         self.indent += 1;
-        seen_numbers.clear();
-        for val in &e.value {
-            let val_name = val.name.as_deref().unwrap_or("UNKNOWN");
-            let number = val.number.unwrap_or(0);
-            if !seen_numbers.insert(number) {
-                continue;
-            }
-            let stripped = strip_enum_prefix(name, val_name);
-            let rust_variant = to_upper_camel(&stripped);
+        for (val_name, _, rust_variant) in &variants {
             self.push_line(&format!("\"{val_name}\" => Some(Self::{rust_variant}),"));
         }
         self.push_line("_ => None,");

@@ -17,6 +17,23 @@ pub enum WalkError {
     WireError(#[from] crate::wire::WireError),
     #[error("max depth exceeded ({0})")]
     MaxDepthExceeded(usize),
+    #[error("invalid byte slice at offset {0}: expected {1} bytes")]
+    InvalidSliceLength(usize, usize),
+}
+
+/// Shared context passed through walker functions to avoid long parameter lists.
+struct WalkCtx<'a> {
+    data: &'a [u8],
+    index: &'a SchemaIndex<'a>,
+    regions: Vec<AnnotatedRegion>,
+}
+
+/// Per-field decoding context for the current field being decoded.
+struct FieldCtx<'a> {
+    field_info: Option<&'a FieldDescriptorProto>,
+    field_name: &'a str,
+    parent_path: &'a [String],
+    depth: usize,
 }
 
 const MAX_DEPTH: usize = 64;
@@ -35,12 +52,16 @@ pub fn walk_protobuf(
         .find_message(root_message)
         .ok_or_else(|| WalkError::MessageNotFound(root_message.to_string()))?;
 
-    let mut regions = Vec::new();
+    let mut ctx = WalkCtx {
+        data,
+        index: &index,
+        regions: Vec::new(),
+    };
     let type_name = root_message.to_string();
 
     // Root message region (placeholder, children filled in below)
-    let root_idx = regions.len();
-    regions.push(AnnotatedRegion {
+    let root_idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
         byte_range: 0..data.len(),
         kind: ProtoRegionKind::Message {
             type_name: type_name.clone(),
@@ -52,30 +73,18 @@ pub fn walk_protobuf(
         depth: 0,
     });
 
-    let children = walk_message_fields(
-        data,
-        0,
-        data.len(),
-        msg,
-        &index,
-        &mut regions,
-        &[short_name(&type_name)],
-        1,
-    )?;
-    regions[root_idx].children = children;
+    let children = walk_message_fields(&mut ctx, 0, data.len(), msg, &[short_name(&type_name)], 1)?;
+    ctx.regions[root_idx].children = children;
 
-    Ok(regions)
+    Ok(ctx.regions)
 }
 
 /// Walk the fields of a single message, returning child indices.
-#[allow(clippy::too_many_arguments)]
 fn walk_message_fields(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     start: usize,
     end: usize,
     msg: &DescriptorProto,
-    index: &SchemaIndex,
-    regions: &mut Vec<AnnotatedRegion>,
     parent_path: &[String],
     depth: usize,
 ) -> Result<Vec<usize>, WalkError> {
@@ -88,7 +97,7 @@ fn walk_message_fields(
     let mut pos = start;
 
     while pos < end {
-        let (tag, after_tag) = wire::decode_tag(data, pos)?;
+        let (tag, after_tag) = wire::decode_tag(ctx.data, pos)?;
 
         // Find field in schema
         let field_info = field_map.get(&tag.field_number);
@@ -97,8 +106,8 @@ fn walk_message_fields(
             .unwrap_or("?");
 
         // Tag region
-        let tag_idx = regions.len();
-        regions.push(AnnotatedRegion {
+        let tag_idx = ctx.regions.len();
+        ctx.regions.push(AnnotatedRegion {
             byte_range: tag.byte_range.clone(),
             kind: ProtoRegionKind::Tag {
                 field_number: tag.field_number,
@@ -115,25 +124,19 @@ fn walk_message_fields(
         });
 
         // Decode field value
-        let (value_indices, next_pos) = decode_field_value(
-            data,
-            after_tag,
-            end,
-            &tag,
-            field_info.copied(),
+        let fctx = FieldCtx {
+            field_info: field_info.copied(),
             field_name,
-            msg,
-            index,
-            regions,
             parent_path,
             depth,
-        )?;
+        };
+        let (value_indices, next_pos) = decode_field_value(ctx, after_tag, end, &tag, &fctx, msg)?;
 
         // Group region: tag + value(s)
         let mut group_children = vec![tag_idx];
         group_children.extend(&value_indices);
 
-        let group_idx = regions.len();
+        let group_idx = ctx.regions.len();
         let mut path = parent_path.to_vec();
         path.push(field_name.to_string());
 
@@ -143,7 +146,7 @@ fn walk_message_fields(
             format!("unknown field {}", tag.field_number)
         };
 
-        regions.push(AnnotatedRegion {
+        ctx.regions.push(AnnotatedRegion {
             byte_range: pos..next_pos,
             kind: if field_info.is_some() {
                 ProtoRegionKind::Message {
@@ -171,65 +174,36 @@ fn walk_message_fields(
 
 /// Decode a single field value based on wire type and schema info.
 /// Returns (value region indices, next position).
-#[allow(clippy::too_many_arguments)]
 fn decode_field_value(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     offset: usize,
     msg_end: usize,
     tag: &wire::Tag,
-    field_info: Option<&FieldDescriptorProto>,
-    field_name: &str,
+    fctx: &FieldCtx,
     parent_msg: &DescriptorProto,
-    index: &SchemaIndex,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
 ) -> Result<(Vec<usize>, usize), WalkError> {
     match tag.wire_type {
-        WireType::Varint => decode_varint_field(
-            data,
-            offset,
-            field_info,
-            field_name,
-            index,
-            regions,
-            parent_path,
-            depth,
-        ),
-        WireType::Fixed64 => {
-            decode_fixed64_field(data, offset, field_name, regions, parent_path, depth)
+        WireType::Varint => decode_varint_field(ctx, offset, fctx),
+        WireType::Fixed64 => decode_fixed_field(ctx, offset, fctx, FixedWidth::W64),
+        WireType::Fixed32 => decode_fixed_field(ctx, offset, fctx, FixedWidth::W32),
+        WireType::LengthDelimited => {
+            decode_length_delimited_field(ctx, offset, msg_end, tag, fctx, parent_msg)
         }
-        WireType::Fixed32 => {
-            decode_fixed32_field(data, offset, field_name, regions, parent_path, depth)
-        }
-        WireType::LengthDelimited => decode_length_delimited_field(
-            data,
-            offset,
-            msg_end,
-            tag,
-            field_info,
-            field_name,
-            parent_msg,
-            index,
-            regions,
-            parent_path,
-            depth,
-        ),
         WireType::StartGroup => {
             // Skip group (deprecated)
-            let range = wire::skip_field(data, offset, WireType::StartGroup)?;
-            let idx = regions.len();
-            regions.push(AnnotatedRegion {
+            let range = wire::skip_field(ctx.data, offset, WireType::StartGroup)?;
+            let idx = ctx.regions.len();
+            ctx.regions.push(AnnotatedRegion {
                 byte_range: range.clone(),
                 kind: ProtoRegionKind::UnknownField {
                     field_number: tag.field_number,
                     wire_type: 3,
                 },
-                label: format!("{}: <group>", field_name),
-                field_path: parent_path.to_vec(),
+                label: format!("{}: <group>", fctx.field_name),
+                field_path: fctx.parent_path.to_vec(),
                 value_display: "<group>".to_string(),
                 children: Vec::new(),
-                depth,
+                depth: fctx.depth,
             });
             Ok((vec![idx], range.end))
         }
@@ -237,26 +211,21 @@ fn decode_field_value(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn decode_varint_field(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     offset: usize,
-    field_info: Option<&FieldDescriptorProto>,
-    field_name: &str,
-    index: &SchemaIndex,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
+    fctx: &FieldCtx,
 ) -> Result<(Vec<usize>, usize), WalkError> {
-    let (raw_value, range) = wire::decode_varint(data, offset)?;
+    let (raw_value, range) = wire::decode_varint(ctx.data, offset)?;
 
-    let field_type = field_info.and_then(|f| f.r#type);
+    let field_type = fctx.field_info.and_then(|f| f.r#type);
+    let field_name = fctx.field_name;
 
     // Try to decode as enum
     if let Some(FieldType::Enum) = field_type {
-        if let Some(field) = field_info {
+        if let Some(field) = fctx.field_info {
             if let Some(ref type_name) = field.type_name {
-                if let Some(enum_desc) = index.find_enum(type_name) {
+                if let Some(enum_desc) = ctx.index.find_enum(type_name) {
                     let value_name = enum_desc
                         .value
                         .iter()
@@ -265,8 +234,8 @@ fn decode_varint_field(
                         .unwrap_or("?");
                     let enum_name = enum_desc.name.as_deref().unwrap_or("?");
 
-                    let idx = regions.len();
-                    regions.push(AnnotatedRegion {
+                    let idx = ctx.regions.len();
+                    ctx.regions.push(AnnotatedRegion {
                         byte_range: range.clone(),
                         kind: ProtoRegionKind::EnumValue {
                             field_name: field_name.to_string(),
@@ -274,10 +243,10 @@ fn decode_varint_field(
                             value_name: value_name.to_string(),
                         },
                         label: format!("{}: {}", field_name, value_name),
-                        field_path: parent_path.to_vec(),
+                        field_path: fctx.parent_path.to_vec(),
                         value_display: format!("{} ({})", value_name, raw_value),
                         children: Vec::new(),
-                        depth,
+                        depth: fctx.depth,
                     });
                     return Ok((vec![idx], range.end));
                 }
@@ -316,122 +285,117 @@ fn decode_varint_field(
         }
     };
 
-    let idx = regions.len();
-    regions.push(AnnotatedRegion {
+    let idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
         byte_range: range.clone(),
         kind: ProtoRegionKind::Varint {
             field_name: field_name.to_string(),
         },
         label: decoded_label,
-        field_path: parent_path.to_vec(),
+        field_path: fctx.parent_path.to_vec(),
         value_display: display,
         children: Vec::new(),
-        depth,
+        depth: fctx.depth,
     });
     Ok((vec![idx], range.end))
 }
 
-fn decode_fixed64_field(
-    data: &[u8],
+/// Whether to decode as 32-bit or 64-bit fixed-width.
+enum FixedWidth {
+    W32,
+    W64,
+}
+
+/// Unified decoder for fixed32 and fixed64 wire types.
+fn decode_fixed_field(
+    ctx: &mut WalkCtx,
     offset: usize,
-    field_name: &str,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
+    fctx: &FieldCtx,
+    width: FixedWidth,
 ) -> Result<(Vec<usize>, usize), WalkError> {
-    let end = offset + 8;
-    if end > data.len() {
+    let field_name = fctx.field_name;
+    let byte_len = match width {
+        FixedWidth::W32 => 4,
+        FixedWidth::W64 => 8,
+    };
+    let end = offset + byte_len;
+    if end > ctx.data.len() {
         return Err(wire::WireError::UnexpectedEof(offset).into());
     }
-    let bytes = &data[offset..end];
-    let val_u64 = u64::from_le_bytes(bytes.try_into().unwrap());
-    let val_f64 = f64::from_le_bytes(bytes.try_into().unwrap());
+    let bytes = &ctx.data[offset..end];
 
-    let display =
-        if val_f64.is_finite() && val_f64 != 0.0 && val_f64.abs() < 1e15 && val_f64.abs() > 1e-10 {
-            format!("{}", val_f64)
-        } else {
-            format!("{}", val_u64)
-        };
+    let display = match width {
+        FixedWidth::W32 => {
+            let int_bytes: [u8; 4] = bytes
+                .try_into()
+                .map_err(|_| WalkError::InvalidSliceLength(offset, 4))?;
+            let val_u = u32::from_le_bytes(int_bytes);
+            let val_f = f32::from_le_bytes(int_bytes);
+            if val_f.is_finite() && val_f != 0.0 && val_f.abs() < 1e10 && val_f.abs() > 1e-6 {
+                format!("{}", val_f)
+            } else {
+                format!("{}", val_u)
+            }
+        }
+        FixedWidth::W64 => {
+            let int_bytes: [u8; 8] = bytes
+                .try_into()
+                .map_err(|_| WalkError::InvalidSliceLength(offset, 8))?;
+            let val_u = u64::from_le_bytes(int_bytes);
+            let val_f = f64::from_le_bytes(int_bytes);
+            if val_f.is_finite() && val_f != 0.0 && val_f.abs() < 1e15 && val_f.abs() > 1e-10 {
+                format!("{}", val_f)
+            } else {
+                format!("{}", val_u)
+            }
+        }
+    };
 
-    let idx = regions.len();
-    regions.push(AnnotatedRegion {
-        byte_range: offset..end,
-        kind: ProtoRegionKind::Fixed64 {
+    let kind = match width {
+        FixedWidth::W32 => ProtoRegionKind::Fixed32 {
             field_name: field_name.to_string(),
         },
+        FixedWidth::W64 => ProtoRegionKind::Fixed64 {
+            field_name: field_name.to_string(),
+        },
+    };
+
+    let idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
+        byte_range: offset..end,
+        kind,
         label: format!("{}: {}", field_name, display),
-        field_path: parent_path.to_vec(),
+        field_path: fctx.parent_path.to_vec(),
         value_display: display,
         children: Vec::new(),
-        depth,
+        depth: fctx.depth,
     });
     Ok((vec![idx], end))
 }
 
-fn decode_fixed32_field(
-    data: &[u8],
-    offset: usize,
-    field_name: &str,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
-) -> Result<(Vec<usize>, usize), WalkError> {
-    let end = offset + 4;
-    if end > data.len() {
-        return Err(wire::WireError::UnexpectedEof(offset).into());
-    }
-    let bytes = &data[offset..end];
-    let val_u32 = u32::from_le_bytes(bytes.try_into().unwrap());
-    let val_f32 = f32::from_le_bytes(bytes.try_into().unwrap());
-
-    let display =
-        if val_f32.is_finite() && val_f32 != 0.0 && val_f32.abs() < 1e10 && val_f32.abs() > 1e-6 {
-            format!("{}", val_f32)
-        } else {
-            format!("{}", val_u32)
-        };
-
-    let idx = regions.len();
-    regions.push(AnnotatedRegion {
-        byte_range: offset..end,
-        kind: ProtoRegionKind::Fixed32 {
-            field_name: field_name.to_string(),
-        },
-        label: format!("{}: {}", field_name, display),
-        field_path: parent_path.to_vec(),
-        value_display: display,
-        children: Vec::new(),
-        depth,
-    });
-    Ok((vec![idx], end))
-}
-
-#[allow(clippy::too_many_arguments)]
 fn decode_length_delimited_field(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     offset: usize,
     _msg_end: usize,
     tag: &wire::Tag,
-    field_info: Option<&FieldDescriptorProto>,
-    field_name: &str,
+    fctx: &FieldCtx,
     parent_msg: &DescriptorProto,
-    index: &SchemaIndex,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
 ) -> Result<(Vec<usize>, usize), WalkError> {
-    let (length, len_range) = wire::decode_varint(data, offset)?;
+    let field_info = fctx.field_info;
+    let field_name = fctx.field_name;
+    let parent_path = fctx.parent_path;
+    let depth = fctx.depth;
+    let (length, len_range) = wire::decode_varint(ctx.data, offset)?;
     let data_start = len_range.end;
     let data_end = data_start + length as usize;
 
-    if data_end > data.len() {
+    if data_end > ctx.data.len() {
         return Err(wire::WireError::UnexpectedEof(data_start).into());
     }
 
     // Length prefix region
-    let len_idx = regions.len();
-    regions.push(AnnotatedRegion {
+    let len_idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
         byte_range: len_range.clone(),
         kind: ProtoRegionKind::LengthPrefix,
         label: format!("length: {}", length),
@@ -451,14 +415,14 @@ fn decode_length_delimited_field(
                 .unwrap_or("?");
 
             // Check if this is a map entry
-            let nested_msg = find_nested_message_by_type(type_name, parent_msg, index);
+            let nested_msg = find_nested_message_by_type(type_name, parent_msg, ctx.index);
             let is_map = nested_msg
                 .and_then(|m| m.options.as_ref())
                 .and_then(|o| o.map_entry)
                 .unwrap_or(false);
 
             if let Some(msg_desc) = nested_msg {
-                let msg_idx = regions.len();
+                let msg_idx = ctx.regions.len();
                 let mut path = parent_path.to_vec();
                 path.push(field_name.to_string());
 
@@ -468,7 +432,7 @@ fn decode_length_delimited_field(
                     format!("{}: <{}>", field_name, short_name(type_name))
                 };
 
-                regions.push(AnnotatedRegion {
+                ctx.regions.push(AnnotatedRegion {
                     byte_range: data_start..data_end,
                     kind: ProtoRegionKind::Message {
                         type_name: type_name.to_string(),
@@ -480,23 +444,15 @@ fn decode_length_delimited_field(
                     depth,
                 });
 
-                let msg_children = walk_message_fields(
-                    data,
-                    data_start,
-                    data_end,
-                    msg_desc,
-                    index,
-                    regions,
-                    &path,
-                    depth + 1,
-                )?;
-                regions[msg_idx].children = msg_children;
+                let msg_children =
+                    walk_message_fields(ctx, data_start, data_end, msg_desc, &path, depth + 1)?;
+                ctx.regions[msg_idx].children = msg_children;
 
                 Ok((vec![len_idx, msg_idx], data_end))
             } else {
                 // Message type not found in schema -- treat as raw bytes
-                let bytes_idx = regions.len();
-                regions.push(AnnotatedRegion {
+                let bytes_idx = ctx.regions.len();
+                ctx.regions.push(AnnotatedRegion {
                     byte_range: data_start..data_end,
                     kind: ProtoRegionKind::BytesData {
                         field_name: field_name.to_string(),
@@ -511,9 +467,9 @@ fn decode_length_delimited_field(
             }
         }
         Some(FieldType::String) => {
-            let s = String::from_utf8_lossy(&data[data_start..data_end]);
-            let str_idx = regions.len();
-            regions.push(AnnotatedRegion {
+            let s = String::from_utf8_lossy(&ctx.data[data_start..data_end]);
+            let str_idx = ctx.regions.len();
+            ctx.regions.push(AnnotatedRegion {
                 byte_range: data_start..data_end,
                 kind: ProtoRegionKind::StringData {
                     field_name: field_name.to_string(),
@@ -527,8 +483,8 @@ fn decode_length_delimited_field(
             Ok((vec![len_idx, str_idx], data_end))
         }
         Some(FieldType::Bytes) => {
-            let bytes_idx = regions.len();
-            regions.push(AnnotatedRegion {
+            let bytes_idx = ctx.regions.len();
+            ctx.regions.push(AnnotatedRegion {
                 byte_range: data_start..data_end,
                 kind: ProtoRegionKind::BytesData {
                     field_name: field_name.to_string(),
@@ -543,27 +499,15 @@ fn decode_length_delimited_field(
         }
         _ if is_packable_type(field_info) => {
             // Packed repeated field
-            decode_packed_field(
-                data,
-                data_start,
-                data_end,
-                field_info,
-                field_name,
-                index,
-                regions,
-                parent_path,
-                depth,
-                len_idx,
-            )
+            decode_packed_field(ctx, data_start, data_end, fctx, len_idx)
         }
         _ if field_info.is_none() => {
             // Unknown field -- try to interpret
             decode_unknown_length_delimited(
-                data,
+                ctx,
                 data_start,
                 data_end,
                 tag.field_number,
-                regions,
                 parent_path,
                 depth,
                 len_idx,
@@ -571,8 +515,8 @@ fn decode_length_delimited_field(
         }
         _ => {
             // Fallback: raw bytes
-            let bytes_idx = regions.len();
-            regions.push(AnnotatedRegion {
+            let bytes_idx = ctx.regions.len();
+            ctx.regions.push(AnnotatedRegion {
                 byte_range: data_start..data_end,
                 kind: ProtoRegionKind::BytesData {
                     field_name: field_name.to_string(),
@@ -589,26 +533,23 @@ fn decode_length_delimited_field(
 }
 
 /// Decode a packed repeated field.
-#[allow(clippy::too_many_arguments)]
 fn decode_packed_field(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     start: usize,
     end: usize,
-    field_info: Option<&FieldDescriptorProto>,
-    field_name: &str,
-    _index: &SchemaIndex,
-    regions: &mut Vec<AnnotatedRegion>,
-    parent_path: &[String],
-    depth: usize,
+    fctx: &FieldCtx,
     len_idx: usize,
 ) -> Result<(Vec<usize>, usize), WalkError> {
-    let field_type = field_info.and_then(|f| f.r#type);
+    let field_type = fctx.field_info.and_then(|f| f.r#type);
+    let field_name = fctx.field_name;
+    let parent_path = fctx.parent_path;
+    let depth = fctx.depth;
     let element_type_name = field_type
         .map(|t| format!("{:?}", t))
         .unwrap_or_else(|| "?".to_string());
 
-    let packed_idx = regions.len();
-    regions.push(AnnotatedRegion {
+    let packed_idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
         byte_range: start..end,
         kind: ProtoRegionKind::PackedRepeated {
             field_name: field_name.to_string(),
@@ -631,10 +572,12 @@ fn decode_packed_field(
                 if elem_end > end {
                     break;
                 }
-                let idx = regions.len();
-                let bytes = &data[pos..elem_end];
-                let val = u32::from_le_bytes(bytes.try_into().unwrap());
-                regions.push(AnnotatedRegion {
+                let idx = ctx.regions.len();
+                let bytes: [u8; 4] = ctx.data[pos..elem_end]
+                    .try_into()
+                    .map_err(|_| WalkError::InvalidSliceLength(pos, 4))?;
+                let val = u32::from_le_bytes(bytes);
+                ctx.regions.push(AnnotatedRegion {
                     byte_range: pos..elem_end,
                     kind: ProtoRegionKind::Fixed32 {
                         field_name: field_name.to_string(),
@@ -653,10 +596,12 @@ fn decode_packed_field(
                 if elem_end > end {
                     break;
                 }
-                let idx = regions.len();
-                let bytes = &data[pos..elem_end];
-                let val = u64::from_le_bytes(bytes.try_into().unwrap());
-                regions.push(AnnotatedRegion {
+                let idx = ctx.regions.len();
+                let bytes: [u8; 8] = ctx.data[pos..elem_end]
+                    .try_into()
+                    .map_err(|_| WalkError::InvalidSliceLength(pos, 8))?;
+                let val = u64::from_le_bytes(bytes);
+                ctx.regions.push(AnnotatedRegion {
                     byte_range: pos..elem_end,
                     kind: ProtoRegionKind::Fixed64 {
                         field_name: field_name.to_string(),
@@ -672,9 +617,9 @@ fn decode_packed_field(
             }
             _ => {
                 // Varint-encoded elements
-                let (val, range) = wire::decode_varint(data, pos)?;
-                let idx = regions.len();
-                regions.push(AnnotatedRegion {
+                let (val, range) = wire::decode_varint(ctx.data, pos)?;
+                let idx = ctx.regions.len();
+                ctx.regions.push(AnnotatedRegion {
                     byte_range: range.clone(),
                     kind: ProtoRegionKind::Varint {
                         field_name: field_name.to_string(),
@@ -692,33 +637,31 @@ fn decode_packed_field(
     }
 
     let values_str = format!("[{} elements]", element_indices.len());
-    regions[packed_idx].children = element_indices;
-    regions[packed_idx].value_display = values_str;
+    ctx.regions[packed_idx].children = element_indices;
+    ctx.regions[packed_idx].value_display = values_str;
 
     Ok((vec![len_idx, packed_idx], end))
 }
 
 /// Decode an unknown length-delimited field (no schema info).
-#[allow(clippy::too_many_arguments)]
 fn decode_unknown_length_delimited(
-    data: &[u8],
+    ctx: &mut WalkCtx,
     start: usize,
     end: usize,
     field_number: u32,
-    regions: &mut Vec<AnnotatedRegion>,
     parent_path: &[String],
     depth: usize,
     len_idx: usize,
 ) -> Result<(Vec<usize>, usize), WalkError> {
-    let payload = &data[start..end];
+    let payload = &ctx.data[start..end];
 
     // Try UTF-8 string
     if let Ok(s) = std::str::from_utf8(payload) {
         if s.chars()
             .all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t')
         {
-            let idx = regions.len();
-            regions.push(AnnotatedRegion {
+            let idx = ctx.regions.len();
+            ctx.regions.push(AnnotatedRegion {
                 byte_range: start..end,
                 kind: ProtoRegionKind::StringData {
                     field_name: format!("field_{}", field_number),
@@ -734,8 +677,8 @@ fn decode_unknown_length_delimited(
     }
 
     // Fallback: raw bytes
-    let idx = regions.len();
-    regions.push(AnnotatedRegion {
+    let idx = ctx.regions.len();
+    ctx.regions.push(AnnotatedRegion {
         byte_range: start..end,
         kind: ProtoRegionKind::BytesData {
             field_name: format!("field_{}", field_number),
