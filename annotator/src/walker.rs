@@ -691,11 +691,6 @@ fn decode_unknown_length_delimited(
     });
     Ok((vec![len_idx, idx], end))
 }
-
-// ---------------------------------------------------------------------------
-// Schema index
-// ---------------------------------------------------------------------------
-
 /// Pre-built index for fast message/enum lookup by fully-qualified name.
 struct SchemaIndex<'a> {
     messages: HashMap<String, &'a DescriptorProto>,
@@ -778,11 +773,6 @@ impl<'a> SchemaIndex<'a> {
             .copied()
     }
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /// Build a map from field number to field descriptor for a message.
 fn build_field_map(msg: &DescriptorProto) -> HashMap<u32, &FieldDescriptorProto> {
     let mut map = HashMap::new();
@@ -972,13 +962,8 @@ mod tests {
     fn walk_handles_unknown_fields() {
         let schema = make_simple_schema();
         // Encode field 99 (not in schema) as varint
-        let mut data = Vec::new();
-        data.push((99 << 3) | 0); // field 99, varint
-                                  // 99 << 3 = 792, | 0 = 792. But that's > 127, need multi-byte tag
-                                  // Let me just use a small field number not in schema
-        data.clear();
-        data.push((10 << 3) | 0); // field 10, varint -- tag = 0x50
-        data.push(7);
+        // field 10 (not in schema), wire type 0 (varint) -- tag = 0x50
+        let data = vec![10 << 3, 7];
 
         let regions = walk_protobuf(&data, &schema, ".test.Person").unwrap();
         assert!(!regions.is_empty());
@@ -1019,13 +1004,8 @@ mod tests {
         };
 
         // Outer { inner: Inner { value: 123 } }
-        let mut inner_buf = Vec::new();
-        inner_buf.push(0x08); // field 1, varint
-        inner_buf.push(123);
-
-        let mut data = Vec::new();
-        data.push(0x0A); // field 1, LEN
-        data.push(inner_buf.len() as u8);
+        let inner_buf = vec![0x08, 123]; // field 1, varint
+        let mut data = vec![0x0A, inner_buf.len() as u8]; // field 1, LEN
         data.extend_from_slice(&inner_buf);
 
         let regions = walk_protobuf(&data, &schema, ".test.Outer").unwrap();

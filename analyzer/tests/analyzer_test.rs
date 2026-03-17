@@ -7,16 +7,11 @@
 ///   4. Field number validation
 ///   5. Proto2 vs proto3 rules
 ///   6. Error cases
-use protoc_rs_analyzer::{analyze, analyze_files, AnalyzeError, FileResolver};
-use protoc_rs_parser::parse;
+use protoc_rs_analyzer::{analyze, analyze_files, FileResolver};
 use protoc_rs_schema::*;
+use protoc_rs_test_utils::*;
 use std::collections::HashMap;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// In-memory file resolver for tests.
 struct MemResolver {
     files: HashMap<String, String>,
 }
@@ -38,27 +33,6 @@ impl FileResolver for MemResolver {
     fn resolve(&self, name: &str) -> Option<String> {
         self.files.get(name).cloned()
     }
-}
-
-fn find_msg<'a>(file: &'a FileDescriptorProto, name: &str) -> &'a DescriptorProto {
-    file.message_type
-        .iter()
-        .find(|m| m.name.as_deref() == Some(name))
-        .unwrap_or_else(|| panic!("message '{}' not found", name))
-}
-
-fn find_field<'a>(msg: &'a DescriptorProto, name: &str) -> &'a FieldDescriptorProto {
-    msg.field
-        .iter()
-        .find(|f| f.name.as_deref() == Some(name))
-        .unwrap_or_else(|| panic!("field '{}' not found in {:?}", name, msg.name))
-}
-
-fn find_enum<'a>(file: &'a FileDescriptorProto, name: &str) -> &'a EnumDescriptorProto {
-    file.enum_type
-        .iter()
-        .find(|e| e.name.as_deref() == Some(name))
-        .unwrap_or_else(|| panic!("enum '{}' not found", name))
 }
 
 // =========================================================================

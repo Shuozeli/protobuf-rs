@@ -6,3 +6,6 @@ description = "Hand-written recursive descent parser for .proto files"
 
 [dependencies]
 protoc-rs-schema = { path = "../schema" }
+
+[dev-dependencies]
+protoc-rs-test-utils = { path = "../test-utils" }

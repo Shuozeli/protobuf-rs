@@ -1,10 +1,5 @@
 use super::ParseError;
 use crate::lexer::Token;
-
-// ---------------------------------------------------------------------------
-// Utility functions
-// ---------------------------------------------------------------------------
-
 /// Parse and validate an enum value from a token. Must fit in i32.
 /// Handles both positive and negative IntLiteral tokens (lexer may produce "-1" as a single token).
 pub(super) fn parse_enum_value(tok: &Token) -> Result<i32, ParseError> {

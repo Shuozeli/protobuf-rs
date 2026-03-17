@@ -3,11 +3,6 @@
 //! Field numbers match `google/protobuf/descriptor.proto`.
 
 use protoc_rs_schema::*;
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /// Serialize a `FileDescriptorSet` to protobuf binary format.
 pub fn serialize_descriptor_set(fds: &FileDescriptorSet) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -20,18 +15,8 @@ pub fn serialize_descriptor_set(fds: &FileDescriptorSet) -> Vec<u8> {
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// Wire format constants
-// ---------------------------------------------------------------------------
-
 const WIRE_VARINT: u32 = 0;
 const WIRE_LEN: u32 = 2;
-
-// ---------------------------------------------------------------------------
-// Encoding primitives
-// ---------------------------------------------------------------------------
-
 fn encode_varint(buf: &mut Vec<u8>, mut val: u64) {
     loop {
         let byte = (val & 0x7F) as u8;
@@ -103,11 +88,6 @@ fn encode_opt_enum<E: Into<i32> + Copy>(buf: &mut Vec<u8>, field_number: u32, va
         encode_varint_field(buf, field_number, v.into() as u64);
     }
 }
-
-// ---------------------------------------------------------------------------
-// FileDescriptorProto (field numbers from descriptor.proto)
-// ---------------------------------------------------------------------------
-
 fn encode_file_descriptor_proto(file: &FileDescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
 
@@ -170,11 +150,6 @@ fn encode_file_descriptor_proto(file: &FileDescriptorProto) -> Vec<u8> {
 
     buf
 }
-
-// ---------------------------------------------------------------------------
-// DescriptorProto
-// ---------------------------------------------------------------------------
-
 fn encode_descriptor_proto(msg: &DescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
 
@@ -229,11 +204,6 @@ fn encode_descriptor_proto(msg: &DescriptorProto) -> Vec<u8> {
 
     buf
 }
-
-// ---------------------------------------------------------------------------
-// FieldDescriptorProto
-// ---------------------------------------------------------------------------
-
 fn encode_field_descriptor_proto(field: &FieldDescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
 
@@ -267,11 +237,6 @@ fn encode_field_descriptor_proto(field: &FieldDescriptorProto) -> Vec<u8> {
 
     buf
 }
-
-// ---------------------------------------------------------------------------
-// EnumDescriptorProto
-// ---------------------------------------------------------------------------
-
 fn encode_enum_descriptor_proto(e: &EnumDescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
 
@@ -317,11 +282,6 @@ fn encode_enum_value_descriptor_proto(val: &EnumValueDescriptorProto) -> Vec<u8>
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// OneofDescriptorProto
-// ---------------------------------------------------------------------------
-
 fn encode_oneof_descriptor_proto(oneof: &OneofDescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
     // 1: name
@@ -335,11 +295,6 @@ fn encode_oneof_descriptor_proto(oneof: &OneofDescriptorProto) -> Vec<u8> {
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// ServiceDescriptorProto
-// ---------------------------------------------------------------------------
-
 fn encode_service_descriptor_proto(svc: &ServiceDescriptorProto) -> Vec<u8> {
     let mut buf = Vec::new();
     // 1: name
@@ -384,11 +339,6 @@ fn encode_method_descriptor_proto(method: &MethodDescriptorProto) -> Vec<u8> {
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// ExtensionRange / ReservedRange
-// ---------------------------------------------------------------------------
-
 fn encode_extension_range(er: &ExtensionRange) -> Vec<u8> {
     let mut buf = Vec::new();
     encode_opt_int32(&mut buf, 1, er.start);
@@ -424,11 +374,6 @@ fn encode_extension_range_options(opts: &ExtensionRangeOptions) -> Vec<u8> {
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
-
 fn encode_file_options(opts: &FileOptions) -> Vec<u8> {
     let mut buf = Vec::new();
     encode_opt_string(&mut buf, 1, &opts.java_package);
@@ -535,11 +480,6 @@ fn encode_method_options(opts: &MethodOptions) -> Vec<u8> {
     }
     buf
 }
-
-// ---------------------------------------------------------------------------
-// UninterpretedOption
-// ---------------------------------------------------------------------------
-
 fn encode_uninterpreted_option(opt: &UninterpretedOption) -> Vec<u8> {
     let mut buf = Vec::new();
     // 2: name (repeated NamePart)
@@ -581,11 +521,6 @@ fn encode_name_part(part: &NamePart) -> Vec<u8> {
     encode_bool_field(&mut buf, 2, part.is_extension);
     buf
 }
-
-// ---------------------------------------------------------------------------
-// SourceCodeInfo
-// ---------------------------------------------------------------------------
-
 fn encode_source_code_info(sci: &SourceCodeInfo) -> Vec<u8> {
     let mut buf = Vec::new();
     for loc in &sci.location {

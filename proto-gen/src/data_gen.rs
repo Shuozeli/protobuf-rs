@@ -11,11 +11,8 @@ pub fn generate_data(rng: &mut StdRng, schema: &SchemaIR, config: &GenConfig) ->
     let root = schema
         .messages
         .iter()
-        .find(|m| m.name == schema.root_message);
-    let root = match root {
-        Some(m) => m,
-        None => return Vec::new(),
-    };
+        .find(|m| m.name == schema.root_message)
+        .expect("root message not found in schema");
     let max_depth = config.max_nesting_depth.max(1);
     encode_message(rng, root, schema, 0, max_depth)
 }

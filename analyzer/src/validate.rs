@@ -7,6 +7,81 @@ const MAX_FIELD_NUMBER: i32 = 536870911; // 2^29 - 1
 const RESERVED_RANGE_START: i32 = 19000;
 const RESERVED_RANGE_END: i32 = 19999;
 
+fn make_err(message: String, file_name: &str, span: Option<Span>) -> AnalyzeError {
+    AnalyzeError {
+        message,
+        file: Some(file_name.to_string()),
+        span,
+    }
+}
+
+trait RangeFields {
+    fn start_val(&self) -> i32;
+    fn end_val(&self) -> i32;
+}
+
+impl RangeFields for ReservedRange {
+    fn start_val(&self) -> i32 { self.start.unwrap_or(0) }
+    fn end_val(&self) -> i32 { self.end.unwrap_or(0) }
+}
+
+impl RangeFields for ExtensionRange {
+    fn start_val(&self) -> i32 { self.start.unwrap_or(0) }
+    fn end_val(&self) -> i32 { self.end.unwrap_or(0) }
+}
+
+fn check_exclusive_range_overlaps<R: RangeFields>(
+    ranges: &[R],
+    kind: &str,
+    file_name: &str,
+    span: Option<Span>,
+) -> Result<(), AnalyzeError> {
+    for (i, r1) in ranges.iter().enumerate() {
+        let (s1, e1) = (r1.start_val(), r1.end_val());
+        for r2 in &ranges[i + 1..] {
+            let (s2, e2) = (r2.start_val(), r2.end_val());
+            if s1 < e2 && s2 < e1 {
+                return Err(make_err(
+                    format!(
+                        "{kind} range {} to {} overlaps with already-defined range {} to {}.",
+                        s2, e2 - 1, s1, e1 - 1,
+                    ),
+                    file_name,
+                    span,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_cross_range_overlaps<A: RangeFields, B: RangeFields>(
+    a_ranges: &[A],
+    a_kind: &str,
+    b_ranges: &[B],
+    b_kind: &str,
+    file_name: &str,
+    span: Option<Span>,
+) -> Result<(), AnalyzeError> {
+    for a in a_ranges {
+        let (as_, ae) = (a.start_val(), a.end_val());
+        for b in b_ranges {
+            let (bs, be) = (b.start_val(), b.end_val());
+            if as_ < be && bs < ae {
+                return Err(make_err(
+                    format!(
+                        "{a_kind} range {} to {} overlaps with {b_kind} range {} to {}.",
+                        as_, ae - 1, bs, be - 1,
+                    ),
+                    file_name,
+                    span,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate a single FileDescriptorProto.
 pub fn validate_file(file: &FileDescriptorProto) -> Result<(), AnalyzeError> {
     let is_proto3 = file.syntax.as_deref() == Some("proto3");
@@ -284,74 +359,13 @@ fn validate_message(
             });
         }
     }
-    // Check for overlapping reserved ranges
-    for (i, r1) in msg.reserved_range.iter().enumerate() {
-        let s1 = r1.start.unwrap_or(0);
-        let e1 = r1.end.unwrap_or(0);
-        for r2 in &msg.reserved_range[i + 1..] {
-            let s2 = r2.start.unwrap_or(0);
-            let e2 = r2.end.unwrap_or(0);
-            if s1 < e2 && s2 < e1 {
-                return Err(AnalyzeError {
-                    message: format!(
-                        "Reserved range {} to {} overlaps with already-defined range {} to {}.",
-                        s2,
-                        e2 - 1,
-                        s1,
-                        e1 - 1
-                    ),
-                    file: Some(file_name.to_string()),
-                    span: msg.source_span,
-                });
-            }
-        }
-    }
-
-    // Check for overlapping extension ranges
-    for (i, r1) in msg.extension_range.iter().enumerate() {
-        let s1 = r1.start.unwrap_or(0);
-        let e1 = r1.end.unwrap_or(0);
-        for r2 in &msg.extension_range[i + 1..] {
-            let s2 = r2.start.unwrap_or(0);
-            let e2 = r2.end.unwrap_or(0);
-            if s1 < e2 && s2 < e1 {
-                return Err(AnalyzeError {
-                    message: format!(
-                        "Extension range {} to {} overlaps with already-defined range {} to {}.",
-                        s2,
-                        e2 - 1,
-                        s1,
-                        e1 - 1
-                    ),
-                    file: Some(file_name.to_string()),
-                    span: msg.source_span,
-                });
-            }
-        }
-    }
-
-    // Check for extension ranges overlapping with reserved ranges
-    for ext in &msg.extension_range {
-        let es = ext.start.unwrap_or(0);
-        let ee = ext.end.unwrap_or(0); // exclusive
-        for res in &msg.reserved_range {
-            let rs = res.start.unwrap_or(0);
-            let re = res.end.unwrap_or(0); // exclusive
-            if es < re && rs < ee {
-                return Err(AnalyzeError {
-                    message: format!(
-                        "Extension range {} to {} overlaps with reserved range {} to {}.",
-                        es,
-                        ee - 1,
-                        rs,
-                        re - 1
-                    ),
-                    file: Some(file_name.to_string()),
-                    span: msg.source_span,
-                });
-            }
-        }
-    }
+    check_exclusive_range_overlaps(&msg.reserved_range, "Reserved", file_name, msg.source_span)?;
+    check_exclusive_range_overlaps(&msg.extension_range, "Extension", file_name, msg.source_span)?;
+    check_cross_range_overlaps(
+        &msg.extension_range, "Extension",
+        &msg.reserved_range, "reserved",
+        file_name, msg.source_span,
+    )?;
 
     // Check for fields whose numbers fall in an extension range
     for field in &msg.field {
@@ -454,46 +468,21 @@ fn validate_message(
             .and_then(|o| o.map_entry)
             .unwrap_or(false);
         if is_map_entry {
-            // Validate key type -- must be integral, bool, or string (not float/double/bytes/enum/message)
             if let Some(key_field) = nested.field.first() {
-                match key_field.r#type {
-                    Some(FieldType::Float) | Some(FieldType::Double) => {
-                        return Err(AnalyzeError {
-                            message: "Key in map fields cannot be float/double types.".to_string(),
-                            file: Some(file_name.to_string()),
-                            span: key_field.source_span,
-                        });
-                    }
-                    Some(FieldType::Bytes) => {
-                        return Err(AnalyzeError {
-                            message: "Key in map fields cannot be bytes types.".to_string(),
-                            file: Some(file_name.to_string()),
-                            span: key_field.source_span,
-                        });
-                    }
-                    Some(FieldType::Message) | Some(FieldType::Group) => {
-                        return Err(AnalyzeError {
-                            message: "Key in map fields cannot be message types.".to_string(),
-                            file: Some(file_name.to_string()),
-                            span: key_field.source_span,
-                        });
-                    }
-                    Some(FieldType::Enum) => {
-                        return Err(AnalyzeError {
-                            message: "Key in map fields cannot be enum types.".to_string(),
-                            file: Some(file_name.to_string()),
-                            span: key_field.source_span,
-                        });
-                    }
-                    _ => {}
-                }
-                // Also check if key has a type_name (indicates message/enum reference)
-                if key_field.type_name.is_some() && key_field.r#type.is_none() {
-                    return Err(AnalyzeError {
-                        message: "Key in map fields cannot be message or enum types.".to_string(),
-                        file: Some(file_name.to_string()),
-                        span: key_field.source_span,
-                    });
+                let bad_type = match key_field.r#type {
+                    Some(FieldType::Float | FieldType::Double) => Some("float/double"),
+                    Some(FieldType::Bytes) => Some("bytes"),
+                    Some(FieldType::Message | FieldType::Group) => Some("message"),
+                    Some(FieldType::Enum) => Some("enum"),
+                    None if key_field.type_name.is_some() => Some("message or enum"),
+                    _ => None,
+                };
+                if let Some(type_name) = bad_type {
+                    return Err(make_err(
+                        format!("Key in map fields cannot be {type_name} types."),
+                        file_name,
+                        key_field.source_span,
+                    ));
                 }
             }
         }
@@ -804,11 +793,6 @@ fn validate_json_name_conflicts(
 
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// Option validation
-// ---------------------------------------------------------------------------
-
 /// Known file option names and their expected types.
 const KNOWN_FILE_OPTIONS: &[(&str, OptionType)] = &[
     ("java_package", OptionType::String),

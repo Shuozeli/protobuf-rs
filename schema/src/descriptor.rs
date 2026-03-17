@@ -1,8 +1,23 @@
 use crate::source_info::{SourceCodeInfo, Span};
 
-// ---------------------------------------------------------------------------
-// Top-level containers
-// ---------------------------------------------------------------------------
+macro_rules! impl_from_int {
+    ($enum_ty:ty, $int_ty:ty, $( $variant:ident = $val:expr ),+ $(,)?) => {
+        impl $enum_ty {
+            pub fn from_int(v: $int_ty) -> Option<Self> {
+                match v {
+                    $( $val => Some(Self::$variant), )+
+                    _ => None,
+                }
+            }
+        }
+
+        impl From<$enum_ty> for i32 {
+            fn from(v: $enum_ty) -> i32 {
+                v as i32
+            }
+        }
+    };
+}
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FileDescriptorSet {
@@ -44,22 +59,12 @@ pub enum Syntax {
     Proto3,
     Unknown(String),
 }
-
-// ---------------------------------------------------------------------------
-// Visibility (editions 2024+)
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum Visibility {
     Export = 0,
     Local = 1,
 }
-
-// ---------------------------------------------------------------------------
-// Message descriptor
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DescriptorProto {
     pub name: Option<String>,
@@ -96,11 +101,6 @@ pub struct ReservedRange {
     pub start: Option<i32>,
     pub end: Option<i32>,
 }
-
-// ---------------------------------------------------------------------------
-// Field descriptor
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FieldDescriptorProto {
     pub name: Option<String>,
@@ -147,30 +147,16 @@ pub enum FieldType {
     Sint64 = 18,
 }
 
+impl_from_int!(FieldType, i32,
+    Double = 1, Float = 2, Int64 = 3, Uint64 = 4, Int32 = 5,
+    Fixed64 = 6, Fixed32 = 7, Bool = 8, String = 9, Group = 10,
+    Message = 11, Bytes = 12, Uint32 = 13, Enum = 14,
+    Sfixed32 = 15, Sfixed64 = 16, Sint32 = 17, Sint64 = 18,
+);
+
 impl FieldType {
-    pub fn from_i32(v: i32) -> Option<Self> {
-        match v {
-            1 => Some(Self::Double),
-            2 => Some(Self::Float),
-            3 => Some(Self::Int64),
-            4 => Some(Self::Uint64),
-            5 => Some(Self::Int32),
-            6 => Some(Self::Fixed64),
-            7 => Some(Self::Fixed32),
-            8 => Some(Self::Bool),
-            9 => Some(Self::String),
-            10 => Some(Self::Group),
-            11 => Some(Self::Message),
-            12 => Some(Self::Bytes),
-            13 => Some(Self::Uint32),
-            14 => Some(Self::Enum),
-            15 => Some(Self::Sfixed32),
-            16 => Some(Self::Sfixed64),
-            17 => Some(Self::Sint32),
-            18 => Some(Self::Sint64),
-            _ => None,
-        }
-    }
+    #[inline]
+    pub fn from_i32(v: i32) -> Option<Self> { Self::from_int(v) }
 
     /// Returns the protobuf wire type for this field type.
     pub fn wire_type(&self) -> WireType {
@@ -245,15 +231,11 @@ pub enum FieldLabel {
     Repeated = 3,
 }
 
+impl_from_int!(FieldLabel, i32, Optional = 1, Required = 2, Repeated = 3);
+
 impl FieldLabel {
-    pub fn from_i32(v: i32) -> Option<Self> {
-        match v {
-            1 => Some(Self::Optional),
-            2 => Some(Self::Required),
-            3 => Some(Self::Repeated),
-            _ => None,
-        }
-    }
+    #[inline]
+    pub fn from_i32(v: i32) -> Option<Self> { Self::from_int(v) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -267,18 +249,14 @@ pub enum WireType {
     Fixed32 = 5,
 }
 
+impl_from_int!(WireType, u32,
+    Varint = 0, Fixed64 = 1, LengthDelimited = 2,
+    StartGroup = 3, EndGroup = 4, Fixed32 = 5,
+);
+
 impl WireType {
-    pub fn from_u32(v: u32) -> Option<Self> {
-        match v {
-            0 => Some(Self::Varint),
-            1 => Some(Self::Fixed64),
-            2 => Some(Self::LengthDelimited),
-            3 => Some(Self::StartGroup),
-            4 => Some(Self::EndGroup),
-            5 => Some(Self::Fixed32),
-            _ => None,
-        }
-    }
+    #[inline]
+    pub fn from_u32(v: u32) -> Option<Self> { Self::from_int(v) }
 
     /// Size in bytes for fixed-size wire types. None for variable-size.
     pub fn fixed_size(&self) -> Option<usize> {
@@ -289,11 +267,6 @@ impl WireType {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Enum descriptor
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnumDescriptorProto {
     pub name: Option<String>,
@@ -323,21 +296,11 @@ pub struct EnumReservedRange {
     pub start: Option<i32>,
     pub end: Option<i32>,
 }
-
-// ---------------------------------------------------------------------------
-// Oneof descriptor
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OneofDescriptorProto {
     pub name: Option<String>,
     pub options: Option<OneofOptions>,
 }
-
-// ---------------------------------------------------------------------------
-// Service descriptor
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServiceDescriptorProto {
     pub name: Option<String>,
@@ -354,11 +317,6 @@ pub struct MethodDescriptorProto {
     pub client_streaming: Option<bool>,
     pub server_streaming: Option<bool>,
 }
-
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FileOptions {
     pub java_package: Option<String>,
@@ -465,11 +423,6 @@ pub enum IdempotencyLevel {
     NoSideEffects = 1,
     Idempotent = 2,
 }
-
-// ---------------------------------------------------------------------------
-// Uninterpreted option (catch-all for custom options)
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct UninterpretedOption {
     pub name: Vec<NamePart>,
@@ -487,42 +440,13 @@ pub struct NamePart {
     pub is_extension: bool,
 }
 
-// ---------------------------------------------------------------------------
-// Into<i32> conversions for enum types
-// ---------------------------------------------------------------------------
-
-impl From<FieldType> for i32 {
-    fn from(v: FieldType) -> i32 {
-        v as i32
-    }
+// Remaining enums that only need From<T> for i32 (no from_int needed).
+macro_rules! impl_into_i32 {
+    ($($enum_ty:ty),+ $(,)?) => {
+        $(impl From<$enum_ty> for i32 {
+            fn from(v: $enum_ty) -> i32 { v as i32 }
+        })+
+    };
 }
 
-impl From<FieldLabel> for i32 {
-    fn from(v: FieldLabel) -> i32 {
-        v as i32
-    }
-}
-
-impl From<OptimizeMode> for i32 {
-    fn from(v: OptimizeMode) -> i32 {
-        v as i32
-    }
-}
-
-impl From<FieldCType> for i32 {
-    fn from(v: FieldCType) -> i32 {
-        v as i32
-    }
-}
-
-impl From<FieldJsType> for i32 {
-    fn from(v: FieldJsType) -> i32 {
-        v as i32
-    }
-}
-
-impl From<IdempotencyLevel> for i32 {
-    fn from(v: IdempotencyLevel) -> i32 {
-        v as i32
-    }
-}
+impl_into_i32!(OptimizeMode, FieldCType, FieldJsType, IdempotencyLevel);

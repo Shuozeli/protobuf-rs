@@ -82,11 +82,6 @@ impl std::fmt::Display for CodeGenError {
 }
 
 impl std::error::Error for CodeGenError {}
-
-// ---------------------------------------------------------------------------
-// Generator state
-// ---------------------------------------------------------------------------
-
 struct RustGen {
     buf: String,
     indent: u32,
@@ -113,11 +108,6 @@ impl RustGen {
             self.buf.push('\n');
         }
     }
-
-    // -----------------------------------------------------------------------
-    // Message generation
-    // -----------------------------------------------------------------------
-
     /// Build the fully-qualified prefix for the current scope (package + nesting).
     /// E.g., with package "test" and nesting ["Outer"], returns "test.Outer".
     fn current_fqn_prefix(&self) -> String {
@@ -244,7 +234,7 @@ impl RustGen {
                 "#[prost(map = \"{key_tag}, {val_tag}\", tag = \"{tag}\")]"
             ));
             let key_type = rust_type(key_field.r#type.unwrap_or(FieldType::Int32));
-            let val_type = rust_map_value_type(val_field, &self.current_fqn_prefix());
+            let val_type = rust_field_type(val_field, &self.current_fqn_prefix());
             self.push_line(&format!(
                 "pub {rust_name}: ::std::collections::HashMap<{key_type}, {val_type}>,"
             ));
@@ -311,11 +301,6 @@ impl RustGen {
             }
         }
     }
-
-    // -----------------------------------------------------------------------
-    // Enum generation
-    // -----------------------------------------------------------------------
-
     fn gen_enum(&mut self, e: &EnumDescriptorProto) -> Result<(), CodeGenError> {
         let name = e.name.as_deref().ok_or(CodeGenError::MissingEnumName)?;
         let rust_name = to_upper_camel(name);
@@ -383,11 +368,6 @@ impl RustGen {
 
         Ok(())
     }
-
-    // -----------------------------------------------------------------------
-    // Oneof enum generation
-    // -----------------------------------------------------------------------
-
     fn gen_oneof_enum(
         &mut self,
         oneof: &OneofDescriptorProto,
@@ -426,11 +406,6 @@ impl RustGen {
         Ok(())
     }
 }
-
-// ---------------------------------------------------------------------------
-// Field partitioning
-// ---------------------------------------------------------------------------
-
 /// Partition fields into regular fields and oneof groups.
 /// Proto3 optional fields (with synthetic oneofs) are treated as regular fields.
 fn partition_fields(
@@ -458,11 +433,6 @@ fn partition_fields(
 
     (regular, oneof_groups)
 }
-
-// ---------------------------------------------------------------------------
-// Map field detection
-// ---------------------------------------------------------------------------
-
 /// Returns true if the field type supports packed encoding (numeric types, bools, enums).
 fn is_packable_type(field: &FieldDescriptorProto) -> bool {
     matches!(
@@ -516,11 +486,6 @@ fn find_map_entry<'a>(
     }
     None
 }
-
-// ---------------------------------------------------------------------------
-// Type mapping
-// ---------------------------------------------------------------------------
-
 /// Prost annotation type tag for a field (e.g. "int32", "string", "message", "enumeration=...").
 fn prost_field_tag(field: &FieldDescriptorProto, package: &str) -> String {
     let field_type = field.r#type.unwrap_or(FieldType::Int32);
@@ -583,19 +548,6 @@ fn rust_field_type(field: &FieldDescriptorProto, package: &str) -> String {
     }
 }
 
-/// Rust type for a map value field.
-fn rust_map_value_type(field: &FieldDescriptorProto, package: &str) -> String {
-    let ft = field.r#type.unwrap_or(FieldType::Int32);
-    match ft {
-        FieldType::Message => {
-            let type_name = field.type_name.as_deref().unwrap_or("Unknown");
-            fqn_to_rust_path(type_name, package)
-        }
-        FieldType::Enum => "i32".to_string(),
-        _ => rust_type(ft).to_string(),
-    }
-}
-
 /// Rust type for a scalar FieldType.
 fn rust_type(ft: FieldType) -> &'static str {
     match ft {
@@ -611,11 +563,6 @@ fn rust_type(ft: FieldType) -> &'static str {
         FieldType::Message | FieldType::Group => "Unknown",
     }
 }
-
-// ---------------------------------------------------------------------------
-// Naming utilities
-// ---------------------------------------------------------------------------
-
 /// Convert to snake_case, handling Rust keywords.
 fn to_snake(name: &str) -> String {
     let s = name.to_snake_case();

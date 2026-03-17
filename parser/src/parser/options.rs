@@ -1,11 +1,6 @@
 use super::parse_int;
 use super::ParseError;
 use protoc_rs_schema::*;
-
-// ---------------------------------------------------------------------------
-// Option value (intermediate representation before applying to specific option types)
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone)]
 pub(super) enum OptionValue {
     String(String),

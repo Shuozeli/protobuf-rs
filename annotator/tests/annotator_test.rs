@@ -161,13 +161,8 @@ fn annotate_nested_message_recursive() {
     let fds = analyze(proto).unwrap();
 
     // Outer { child: Inner { x: 99 } }
-    let mut inner = Vec::new();
-    inner.push(0x08); // field 1, varint
-    inner.push(99);
-
-    let mut data = Vec::new();
-    data.push(0x0A); // field 1, LEN
-    data.push(inner.len() as u8);
+    let inner = vec![0x08, 99]; // field 1, varint
+    let mut data = vec![0x0A, inner.len() as u8]; // field 1, LEN
     data.extend_from_slice(&inner);
 
     let regions = walk_protobuf(&data, &fds, ".test.Outer").unwrap();

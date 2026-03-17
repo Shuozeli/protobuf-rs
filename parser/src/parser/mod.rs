@@ -8,11 +8,6 @@ use crate::source_info_builder::{field_num as fnum, SourceInfoBuilder};
 
 use options::*;
 use parse_helpers::*;
-
-// ---------------------------------------------------------------------------
-// Error type
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub message: String,
@@ -35,11 +30,6 @@ impl From<LexError> for ParseError {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Parser state
-// ---------------------------------------------------------------------------
-
 /// Maximum nesting depth for messages (matches C++ protoc).
 const MAX_MESSAGE_NESTING_DEPTH: usize = 32;
 

@@ -10,3 +10,4 @@ protoc-rs-parser = { path = "../parser" }
 
 [dev-dependencies]
 protoc-rs-parser = { path = "../parser" }
+protoc-rs-test-utils = { path = "../test-utils" }

@@ -5,11 +5,6 @@ mod well_known;
 use protoc_rs_parser::{parse, ParseError};
 use protoc_rs_schema::*;
 use std::collections::{HashMap, HashSet};
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /// Error type for analysis failures.
 #[derive(Debug, Clone)]
 pub struct AnalyzeError {
@@ -89,11 +84,6 @@ pub fn analyze_files(
     ctx.validate_all()?;
     Ok(ctx.into_descriptor_set())
 }
-
-// ---------------------------------------------------------------------------
-// Internal: Analysis context
-// ---------------------------------------------------------------------------
-
 /// Tracks all loaded files and the global symbol table.
 struct AnalyzeContext {
     /// All loaded files, keyed by file name.
