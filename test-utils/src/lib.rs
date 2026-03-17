@@ -35,30 +35,21 @@ pub fn find_nested_enum<'a>(msg: &'a DescriptorProto, name: &str) -> &'a EnumDes
         .unwrap_or_else(|| panic!("nested enum '{}' not found in {:?}", name, msg.name))
 }
 
-pub fn find_service<'a>(
-    file: &'a FileDescriptorProto,
-    name: &str,
-) -> &'a ServiceDescriptorProto {
+pub fn find_service<'a>(file: &'a FileDescriptorProto, name: &str) -> &'a ServiceDescriptorProto {
     file.service
         .iter()
         .find(|s| s.name.as_deref() == Some(name))
         .unwrap_or_else(|| panic!("service '{}' not found", name))
 }
 
-pub fn find_method<'a>(
-    svc: &'a ServiceDescriptorProto,
-    name: &str,
-) -> &'a MethodDescriptorProto {
+pub fn find_method<'a>(svc: &'a ServiceDescriptorProto, name: &str) -> &'a MethodDescriptorProto {
     svc.method
         .iter()
         .find(|m| m.name.as_deref() == Some(name))
         .unwrap_or_else(|| panic!("method '{}' not found in {:?}", name, svc.name))
 }
 
-pub fn find_enum_value<'a>(
-    e: &'a EnumDescriptorProto,
-    name: &str,
-) -> &'a EnumValueDescriptorProto {
+pub fn find_enum_value<'a>(e: &'a EnumDescriptorProto, name: &str) -> &'a EnumValueDescriptorProto {
     e.value
         .iter()
         .find(|v| v.name.as_deref() == Some(name))

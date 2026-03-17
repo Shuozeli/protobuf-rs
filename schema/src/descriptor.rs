@@ -147,16 +147,34 @@ pub enum FieldType {
     Sint64 = 18,
 }
 
-impl_from_int!(FieldType, i32,
-    Double = 1, Float = 2, Int64 = 3, Uint64 = 4, Int32 = 5,
-    Fixed64 = 6, Fixed32 = 7, Bool = 8, String = 9, Group = 10,
-    Message = 11, Bytes = 12, Uint32 = 13, Enum = 14,
-    Sfixed32 = 15, Sfixed64 = 16, Sint32 = 17, Sint64 = 18,
+impl_from_int!(
+    FieldType,
+    i32,
+    Double = 1,
+    Float = 2,
+    Int64 = 3,
+    Uint64 = 4,
+    Int32 = 5,
+    Fixed64 = 6,
+    Fixed32 = 7,
+    Bool = 8,
+    String = 9,
+    Group = 10,
+    Message = 11,
+    Bytes = 12,
+    Uint32 = 13,
+    Enum = 14,
+    Sfixed32 = 15,
+    Sfixed64 = 16,
+    Sint32 = 17,
+    Sint64 = 18,
 );
 
 impl FieldType {
     #[inline]
-    pub fn from_i32(v: i32) -> Option<Self> { Self::from_int(v) }
+    pub fn from_i32(v: i32) -> Option<Self> {
+        Self::from_int(v)
+    }
 
     /// Returns the protobuf wire type for this field type.
     pub fn wire_type(&self) -> WireType {
@@ -235,7 +253,9 @@ impl_from_int!(FieldLabel, i32, Optional = 1, Required = 2, Repeated = 3);
 
 impl FieldLabel {
     #[inline]
-    pub fn from_i32(v: i32) -> Option<Self> { Self::from_int(v) }
+    pub fn from_i32(v: i32) -> Option<Self> {
+        Self::from_int(v)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -249,14 +269,22 @@ pub enum WireType {
     Fixed32 = 5,
 }
 
-impl_from_int!(WireType, u32,
-    Varint = 0, Fixed64 = 1, LengthDelimited = 2,
-    StartGroup = 3, EndGroup = 4, Fixed32 = 5,
+impl_from_int!(
+    WireType,
+    u32,
+    Varint = 0,
+    Fixed64 = 1,
+    LengthDelimited = 2,
+    StartGroup = 3,
+    EndGroup = 4,
+    Fixed32 = 5,
 );
 
 impl WireType {
     #[inline]
-    pub fn from_u32(v: u32) -> Option<Self> { Self::from_int(v) }
+    pub fn from_u32(v: u32) -> Option<Self> {
+        Self::from_int(v)
+    }
 
     /// Size in bytes for fixed-size wire types. None for variable-size.
     pub fn fixed_size(&self) -> Option<usize> {

@@ -21,13 +21,21 @@ trait RangeFields {
 }
 
 impl RangeFields for ReservedRange {
-    fn start_val(&self) -> i32 { self.start.unwrap_or(0) }
-    fn end_val(&self) -> i32 { self.end.unwrap_or(0) }
+    fn start_val(&self) -> i32 {
+        self.start.unwrap_or(0)
+    }
+    fn end_val(&self) -> i32 {
+        self.end.unwrap_or(0)
+    }
 }
 
 impl RangeFields for ExtensionRange {
-    fn start_val(&self) -> i32 { self.start.unwrap_or(0) }
-    fn end_val(&self) -> i32 { self.end.unwrap_or(0) }
+    fn start_val(&self) -> i32 {
+        self.start.unwrap_or(0)
+    }
+    fn end_val(&self) -> i32 {
+        self.end.unwrap_or(0)
+    }
 }
 
 fn check_exclusive_range_overlaps<R: RangeFields>(
@@ -44,7 +52,10 @@ fn check_exclusive_range_overlaps<R: RangeFields>(
                 return Err(make_err(
                     format!(
                         "{kind} range {} to {} overlaps with already-defined range {} to {}.",
-                        s2, e2 - 1, s1, e1 - 1,
+                        s2,
+                        e2 - 1,
+                        s1,
+                        e1 - 1,
                     ),
                     file_name,
                     span,
@@ -71,7 +82,10 @@ fn check_cross_range_overlaps<A: RangeFields, B: RangeFields>(
                 return Err(make_err(
                     format!(
                         "{a_kind} range {} to {} overlaps with {b_kind} range {} to {}.",
-                        as_, ae - 1, bs, be - 1,
+                        as_,
+                        ae - 1,
+                        bs,
+                        be - 1,
                     ),
                     file_name,
                     span,
@@ -360,11 +374,19 @@ fn validate_message(
         }
     }
     check_exclusive_range_overlaps(&msg.reserved_range, "Reserved", file_name, msg.source_span)?;
-    check_exclusive_range_overlaps(&msg.extension_range, "Extension", file_name, msg.source_span)?;
+    check_exclusive_range_overlaps(
+        &msg.extension_range,
+        "Extension",
+        file_name,
+        msg.source_span,
+    )?;
     check_cross_range_overlaps(
-        &msg.extension_range, "Extension",
-        &msg.reserved_range, "reserved",
-        file_name, msg.source_span,
+        &msg.extension_range,
+        "Extension",
+        &msg.reserved_range,
+        "reserved",
+        file_name,
+        msg.source_span,
     )?;
 
     // Check for fields whose numbers fall in an extension range
