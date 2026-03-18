@@ -22,7 +22,7 @@ A pure Rust implementation of the [Protocol Buffers](https://protobuf.dev/) comp
 | `analyzer` | Import resolution, type resolution, validation |
 | `compiler` | CLI entry point + `FileDescriptorSet` serializer |
 | `annotator` | Binary walker with byte-level annotation (in progress) |
-| `codegen` | Code generation (planned) |
+| `codegen` | Rust code generation (prost-compatible structs). Optional `grpc` feature generates gRPC service stubs via [pure-grpc-rs](https://github.com/shuozeli/pure-grpc-rs) |
 | `proto-gen` | Random `.proto` schema + binary data generator |
 | `conformance` | Real-world `.proto` conformance tests |
 | `test-utils` | Shared test framework |

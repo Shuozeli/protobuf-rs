@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2021"
 description = "Code generators for protobuf schemas"
 
+[features]
+default = []
+grpc = ["grpc-codegen", "dep:proc-macro2", "dep:syn", "dep:prettyplease"]
+
 [dependencies]
 protoc-rs-schema = { path = "../schema" }
 heck = "0.5"
+grpc-codegen = { git = "https://github.com/shuozeli/pure-grpc-rs.git", optional = true, default-features = false, features = ["protobuf"] }
+proc-macro2 = { version = "1", optional = true }
+syn = { version = "2", optional = true }
+prettyplease = { version = "0.2", optional = true }
 
 [dev-dependencies]
 protoc-rs-analyzer = { path = "../analyzer" }

@@ -61,6 +61,16 @@ fn generate_file(file: &FileDescriptorProto) -> Result<String, CodeGenError> {
         gen.push_line("");
     }
 
+    // gRPC services (when grpc feature is enabled)
+    #[cfg(feature = "grpc")]
+    {
+        let service_code = crate::service_gen::generate_services(file)?;
+        if !service_code.is_empty() {
+            gen.push_line("");
+            gen.buf.push_str(&service_code);
+        }
+    }
+
     Ok(gen.buf)
 }
 
@@ -69,6 +79,8 @@ pub enum CodeGenError {
     MissingFieldName,
     MissingMessageName,
     MissingEnumName,
+    #[cfg(feature = "grpc")]
+    ServiceGen(String),
 }
 
 impl std::fmt::Display for CodeGenError {
@@ -77,6 +89,8 @@ impl std::fmt::Display for CodeGenError {
             Self::MissingFieldName => write!(f, "missing field name in message"),
             Self::MissingMessageName => write!(f, "missing message name"),
             Self::MissingEnumName => write!(f, "missing enum name"),
+            #[cfg(feature = "grpc")]
+            Self::ServiceGen(e) => write!(f, "gRPC service generation error: {e}"),
         }
     }
 }
