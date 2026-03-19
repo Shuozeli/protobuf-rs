@@ -11,7 +11,7 @@ A pure Rust implementation of the [Protocol Buffers](https://protobuf.dev/) comp
 - Editions support (2023, 2024)
 - Real-world conformance testing against 29 open-source `.proto` files
 - Random schema and binary data generation (`proto-gen` crate)
-- 610+ tests including upstream C++ test parity and cross-compat with `protoc`
+- 660+ tests including upstream C++ test parity and cross-compat with `protoc`
 
 ## Crate Structure
 
@@ -21,11 +21,12 @@ A pure Rust implementation of the [Protocol Buffers](https://protobuf.dev/) comp
 | `parser` | `.proto` -> unresolved `FileDescriptorProto` |
 | `analyzer` | Import resolution, type resolution, validation |
 | `compiler` | CLI entry point + `FileDescriptorSet` serializer |
-| `annotator` | Binary walker with byte-level annotation (in progress) |
+| `annotator` | Binary walker with byte-level annotation |
 | `codegen` | Rust code generation (prost-compatible structs). Optional `grpc` feature generates gRPC service stubs via [pure-grpc-rs](https://github.com/shuozeli/pure-grpc-rs) |
 | `proto-gen` | Random `.proto` schema + binary data generator |
 | `conformance` | Real-world `.proto` conformance tests |
-| `test-utils` | Shared test framework |
+| `test-utils` | Shared test helpers (find_msg, find_field, find_enum, etc.) |
+| `wasm-api` | WASM bindings for browser-based protobuf compilation |
 
 ## Quick Start
 
@@ -44,6 +45,12 @@ cargo run -- -I src/ -o out.pb file.proto
 
 # Include imported files in output
 cargo run -- -I src/ -o out.pb --include_imports file.proto
+
+# Generate prost-compatible Rust code
+cargo run -- -I src/ --rust_out out/ file.proto
+
+# Include source code info in output
+cargo run -- -I src/ -o out.pb --include_source_info file.proto
 
 # Dump parsed schema (debug)
 cargo run -- --dump-schema -I src/ file.proto
