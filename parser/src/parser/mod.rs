@@ -1,6 +1,7 @@
 mod options;
 mod parse_helpers;
 
+pub use parse_helpers::to_camel_case;
 use protoc_rs_schema::*;
 
 use crate::lexer::{LexError, Lexer, Token, TokenKind};

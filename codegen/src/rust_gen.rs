@@ -449,25 +449,7 @@ fn partition_fields(
 }
 /// Returns true if the field type supports packed encoding (numeric types, bools, enums).
 fn is_packable_type(field: &FieldDescriptorProto) -> bool {
-    matches!(
-        field.r#type,
-        Some(
-            FieldType::Double
-                | FieldType::Float
-                | FieldType::Int64
-                | FieldType::Uint64
-                | FieldType::Int32
-                | FieldType::Fixed64
-                | FieldType::Fixed32
-                | FieldType::Bool
-                | FieldType::Uint32
-                | FieldType::Sfixed32
-                | FieldType::Sfixed64
-                | FieldType::Sint32
-                | FieldType::Sint64
-                | FieldType::Enum
-        )
-    )
+    field.r#type.map(|t| t.is_packable()).unwrap_or(false)
 }
 
 fn is_map_entry(msg: &DescriptorProto) -> bool {

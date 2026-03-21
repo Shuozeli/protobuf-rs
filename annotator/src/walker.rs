@@ -801,7 +801,7 @@ fn find_nested_message_by_type<'a>(
     index.find_message(type_name)
 }
 
-/// Check if a field type can be packed.
+/// Check if a field type can be packed (must be repeated + packable scalar type).
 fn is_packable_type(field_info: Option<&FieldDescriptorProto>) -> bool {
     let field = match field_info {
         Some(f) => f,
@@ -812,25 +812,7 @@ fn is_packable_type(field_info: Option<&FieldDescriptorProto>) -> bool {
         return false;
     }
     // Must be a packable scalar type
-    matches!(
-        field.r#type,
-        Some(
-            FieldType::Int32
-                | FieldType::Int64
-                | FieldType::Uint32
-                | FieldType::Uint64
-                | FieldType::Sint32
-                | FieldType::Sint64
-                | FieldType::Bool
-                | FieldType::Enum
-                | FieldType::Fixed32
-                | FieldType::Fixed64
-                | FieldType::Sfixed32
-                | FieldType::Sfixed64
-                | FieldType::Float
-                | FieldType::Double
-        )
-    )
+    field.r#type.map(|t| t.is_packable()).unwrap_or(false)
 }
 
 /// Extract short name from fully-qualified name (e.g., ".pkg.Foo" -> "Foo").
@@ -838,12 +820,13 @@ fn short_name(fqn: &str) -> String {
     fqn.rsplit('.').next().unwrap_or(fqn).to_string()
 }
 
-/// Truncate a string for display.
+/// Truncate a string for display (char-boundary safe).
 fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len])
+        let truncated: String = s.chars().take(max_len).collect();
+        format!("{}...", truncated)
     }
 }
 

@@ -730,21 +730,9 @@ fn validate_extension_field(
 }
 
 /// Compute the default JSON name for a protobuf field name.
-/// Converts snake_case to lowerCamelCase.
+/// Delegates to the canonical implementation in the parser crate.
 fn default_json_name(proto_name: &str) -> String {
-    let mut result = String::with_capacity(proto_name.len());
-    let mut capitalize_next = false;
-    for ch in proto_name.chars() {
-        if ch == '_' {
-            capitalize_next = true;
-        } else if capitalize_next {
-            result.extend(ch.to_uppercase());
-            capitalize_next = false;
-        } else {
-            result.push(ch);
-        }
-    }
-    result
+    protoc_rs_parser::to_camel_case(proto_name)
 }
 
 /// Validate JSON name conflicts within a message's fields.

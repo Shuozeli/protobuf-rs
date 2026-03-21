@@ -39,6 +39,24 @@ pub(super) fn expect_string_option(
     }
 }
 
+pub(super) fn expect_bool_option(
+    name: &str,
+    value: &OptionValue,
+    parent: &str,
+) -> Result<bool, ParseError> {
+    if let OptionValue::Bool(b) = value {
+        Ok(*b)
+    } else {
+        Err(ParseError {
+            message: format!(
+                "Value must be \"true\" or \"false\" for boolean option \"{}.{}\".",
+                parent, name
+            ),
+            span: Span::default(),
+        })
+    }
+}
+
 pub(super) fn expect_enum_option(
     name: &str,
     value: &OptionValue,
@@ -80,19 +98,13 @@ pub(super) fn apply_file_option(
         }
         "ruby_package" => opts.ruby_package = Some(expect_string_option(&name, &value, P)?),
         "java_multiple_files" => {
-            if let OptionValue::Bool(b) = value {
-                opts.java_multiple_files = Some(b);
-            }
+            opts.java_multiple_files = Some(expect_bool_option(&name, &value, P)?);
         }
         "java_string_check_utf8" => {
-            if let OptionValue::Bool(b) = value {
-                opts.java_string_check_utf8 = Some(b);
-            }
+            opts.java_string_check_utf8 = Some(expect_bool_option(&name, &value, P)?);
         }
         "java_generate_equals_and_hash" => {
-            if let OptionValue::Bool(b) = value {
-                opts.java_generate_equals_and_hash = Some(b);
-            }
+            opts.java_generate_equals_and_hash = Some(expect_bool_option(&name, &value, P)?);
         }
         "optimize_for" => {
             let s = expect_enum_option(&name, &value, P)?;
@@ -104,29 +116,19 @@ pub(super) fn apply_file_option(
             };
         }
         "cc_generic_services" => {
-            if let OptionValue::Bool(b) = value {
-                opts.cc_generic_services = Some(b);
-            }
+            opts.cc_generic_services = Some(expect_bool_option(&name, &value, P)?);
         }
         "java_generic_services" => {
-            if let OptionValue::Bool(b) = value {
-                opts.java_generic_services = Some(b);
-            }
+            opts.java_generic_services = Some(expect_bool_option(&name, &value, P)?);
         }
         "py_generic_services" => {
-            if let OptionValue::Bool(b) = value {
-                opts.py_generic_services = Some(b);
-            }
+            opts.py_generic_services = Some(expect_bool_option(&name, &value, P)?);
         }
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(b);
-            }
+            opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         "cc_enable_arenas" => {
-            if let OptionValue::Bool(b) = value {
-                opts.cc_enable_arenas = Some(b);
-            }
+            opts.cc_enable_arenas = Some(expect_bool_option(&name, &value, P)?);
         }
         _ => {
             // Unknown/custom option -- store as uninterpreted
@@ -141,31 +143,25 @@ pub(super) fn apply_message_option(
     opts: &mut MessageOptions,
     (name, value): (String, OptionValue),
 ) -> Result<(), ParseError> {
+    const P: &str = "google.protobuf.MessageOptions";
     match name.as_str() {
         "message_set_wire_format" => {
-            if let OptionValue::Bool(b) = value {
-                opts.message_set_wire_format = Some(b);
-            }
+            opts.message_set_wire_format = Some(expect_bool_option(&name, &value, P)?);
         }
         "no_standard_descriptor_accessor" => {
-            if let OptionValue::Bool(b) = value {
-                opts.no_standard_descriptor_accessor = Some(b);
-            }
+            opts.no_standard_descriptor_accessor = Some(expect_bool_option(&name, &value, P)?);
         }
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(b);
-            }
+            opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         "map_entry" => {
-            if let OptionValue::Bool(b) = value {
-                opts.map_entry = Some(b);
-                if b {
-                    return Err(ParseError {
-                        message: "map_entry should not be set explicitly. Use map<KeyType, ValueType> instead.".to_string(),
-                        span: Span::default(),
-                    });
-                }
+            let b = expect_bool_option(&name, &value, P)?;
+            opts.map_entry = Some(b);
+            if b {
+                return Err(ParseError {
+                    message: "map_entry should not be set explicitly. Use map<KeyType, ValueType> instead.".to_string(),
+                    span: Span::default(),
+                });
             }
         }
         _ => {
@@ -181,26 +177,19 @@ pub(super) fn apply_field_option(
     name: &str,
     value: &OptionValue,
 ) -> Result<(), ParseError> {
+    const P: &str = "google.protobuf.FieldOptions";
     match name {
         "packed" => {
-            if let OptionValue::Bool(b) = value {
-                opts.packed = Some(*b);
-            }
+            opts.packed = Some(expect_bool_option(name, value, P)?);
         }
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(*b);
-            }
+            opts.deprecated = Some(expect_bool_option(name, value, P)?);
         }
         "lazy" => {
-            if let OptionValue::Bool(b) = value {
-                opts.lazy = Some(*b);
-            }
+            opts.lazy = Some(expect_bool_option(name, value, P)?);
         }
         "weak" => {
-            if let OptionValue::Bool(b) = value {
-                opts.weak = Some(*b);
-            }
+            opts.weak = Some(expect_bool_option(name, value, P)?);
         }
         "jstype" => {
             let s = expect_enum_option(name, value, "google.protobuf.FieldOptions")?;
@@ -436,16 +425,13 @@ pub(super) fn apply_enum_option(
     opts: &mut EnumOptions,
     (name, value): (String, OptionValue),
 ) -> Result<(), ParseError> {
+    const P: &str = "google.protobuf.EnumOptions";
     match name.as_str() {
         "allow_alias" => {
-            if let OptionValue::Bool(b) = value {
-                opts.allow_alias = Some(b);
-            }
+            opts.allow_alias = Some(expect_bool_option(&name, &value, P)?);
         }
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(b);
-            }
+            opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         _ => {
             opts.uninterpreted_option
@@ -459,11 +445,10 @@ pub(super) fn apply_service_option(
     opts: &mut ServiceOptions,
     (name, value): (String, OptionValue),
 ) -> Result<(), ParseError> {
+    const P: &str = "google.protobuf.ServiceOptions";
     match name.as_str() {
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(b);
-            }
+            opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         _ => {
             opts.uninterpreted_option
@@ -477,11 +462,10 @@ pub(super) fn apply_method_option(
     opts: &mut MethodOptions,
     (name, value): (String, OptionValue),
 ) -> Result<(), ParseError> {
+    const P: &str = "google.protobuf.MethodOptions";
     match name.as_str() {
         "deprecated" => {
-            if let OptionValue::Bool(b) = value {
-                opts.deprecated = Some(b);
-            }
+            opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         "idempotency_level" => {
             if let OptionValue::Ident(s) = &value {

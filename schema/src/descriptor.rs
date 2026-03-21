@@ -171,11 +171,6 @@ impl_from_int!(
 );
 
 impl FieldType {
-    #[inline]
-    pub fn from_i32(v: i32) -> Option<Self> {
-        Self::from_int(v)
-    }
-
     /// Returns the protobuf wire type for this field type.
     pub fn wire_type(&self) -> WireType {
         match self {
@@ -192,6 +187,27 @@ impl FieldType {
             Self::String | Self::Bytes | Self::Message => WireType::LengthDelimited,
             Self::Group => WireType::StartGroup,
         }
+    }
+
+    /// Returns true if this field type supports packed encoding (numeric types, bools, enums).
+    pub fn is_packable(&self) -> bool {
+        matches!(
+            self,
+            Self::Double
+                | Self::Float
+                | Self::Int64
+                | Self::Uint64
+                | Self::Int32
+                | Self::Fixed64
+                | Self::Fixed32
+                | Self::Bool
+                | Self::Uint32
+                | Self::Sfixed32
+                | Self::Sfixed64
+                | Self::Sint32
+                | Self::Sint64
+                | Self::Enum
+        )
     }
 
     /// Name as it appears in .proto files.
@@ -250,13 +266,6 @@ pub enum FieldLabel {
 }
 
 impl_from_int!(FieldLabel, i32, Optional = 1, Required = 2, Repeated = 3);
-
-impl FieldLabel {
-    #[inline]
-    pub fn from_i32(v: i32) -> Option<Self> {
-        Self::from_int(v)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]

@@ -101,7 +101,7 @@ pub(super) fn is_valid_identifier(s: &str) -> bool {
 }
 
 /// Convert snake_case to camelCase (protobuf json_name default).
-pub(super) fn to_camel_case(s: &str) -> String {
+pub fn to_camel_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut capitalize_next = false;
     for c in s.chars() {

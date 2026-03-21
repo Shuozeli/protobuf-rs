@@ -3,6 +3,9 @@
 use std::ops::Range;
 use thiserror::Error;
 
+// Re-export WireType from the schema crate (single source of truth).
+pub use protoc_rs_schema::WireType;
+
 #[derive(Debug, Error)]
 pub enum WireError {
     #[error("unexpected end of data at offset {0}")]
@@ -11,32 +14,6 @@ pub enum WireError {
     VarintTooLong(usize),
     #[error("unknown wire type {wire_type} at offset {offset}")]
     UnknownWireType { wire_type: u32, offset: usize },
-}
-
-/// Protobuf wire types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u32)]
-pub enum WireType {
-    Varint = 0,
-    Fixed64 = 1,
-    LengthDelimited = 2,
-    StartGroup = 3,
-    EndGroup = 4,
-    Fixed32 = 5,
-}
-
-impl WireType {
-    pub fn from_u32(v: u32) -> Result<Self, u32> {
-        match v {
-            0 => Ok(Self::Varint),
-            1 => Ok(Self::Fixed64),
-            2 => Ok(Self::LengthDelimited),
-            3 => Ok(Self::StartGroup),
-            4 => Ok(Self::EndGroup),
-            5 => Ok(Self::Fixed32),
-            other => Err(other),
-        }
-    }
 }
 
 /// Decoded tag: field number + wire type + byte range of the tag varint.
@@ -76,8 +53,8 @@ pub fn decode_tag(buf: &[u8], offset: usize) -> Result<(Tag, usize), WireError> 
     let (raw, range) = decode_varint(buf, offset)?;
     let wire_type_val = (raw & 0x07) as u32;
     let field_number = (raw >> 3) as u32;
-    let wire_type = WireType::from_u32(wire_type_val).map_err(|wt| WireError::UnknownWireType {
-        wire_type: wt,
+    let wire_type = WireType::from_u32(wire_type_val).ok_or(WireError::UnknownWireType {
+        wire_type: wire_type_val,
         offset,
     })?;
     Ok((
