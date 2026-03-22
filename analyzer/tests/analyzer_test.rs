@@ -375,6 +375,60 @@ fn resolve_well_known_any() {
     );
 }
 
+#[test]
+fn resolve_well_known_rpc_status() {
+    let source = r#"
+        syntax = "proto3";
+        import "google/rpc/status.proto";
+        message Wrapper {
+            google.rpc.Status status = 1;
+        }
+    "#;
+    let fds = analyze(source).unwrap();
+    let file = fds
+        .file
+        .iter()
+        .find(|f| f.name.as_deref() == Some("<input>"))
+        .unwrap();
+    let wrapper = find_msg(file, "Wrapper");
+    let status_field = find_field(wrapper, "status");
+    assert_eq!(status_field.r#type, Some(FieldType::Message));
+    assert_eq!(
+        status_field.type_name,
+        Some(".google.rpc.Status".to_string())
+    );
+}
+
+#[test]
+fn resolve_well_known_error_details() {
+    let source = r#"
+        syntax = "proto3";
+        import "google/rpc/error_details.proto";
+        message Wrapper {
+            google.rpc.ErrorInfo error = 1;
+            google.rpc.RetryInfo retry = 2;
+        }
+    "#;
+    let fds = analyze(source).unwrap();
+    let file = fds
+        .file
+        .iter()
+        .find(|f| f.name.as_deref() == Some("<input>"))
+        .unwrap();
+    let wrapper = find_msg(file, "Wrapper");
+    let error_field = find_field(wrapper, "error");
+    assert_eq!(error_field.r#type, Some(FieldType::Message));
+    assert_eq!(
+        error_field.type_name,
+        Some(".google.rpc.ErrorInfo".to_string())
+    );
+    let retry_field = find_field(wrapper, "retry");
+    assert_eq!(
+        retry_field.type_name,
+        Some(".google.rpc.RetryInfo".to_string())
+    );
+}
+
 // =========================================================================
 // 4. FIELD NUMBER VALIDATION
 // =========================================================================

@@ -42,6 +42,14 @@ static WELL_KNOWN_PROTOS: &[(&str, &str)] = &[
         "google/protobuf/wrappers.proto",
         include_str!("well_known_protos/google/protobuf/wrappers.proto"),
     ),
+    (
+        "google/rpc/status.proto",
+        include_str!("well_known_protos/google/rpc/status.proto"),
+    ),
+    (
+        "google/rpc/error_details.proto",
+        include_str!("well_known_protos/google/rpc/error_details.proto"),
+    ),
 ];
 
 /// Resolver that knows about well-known Google protobuf types.
