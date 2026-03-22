@@ -627,21 +627,59 @@ fn strip_enum_prefix(enum_name: &str, value_name: &str) -> String {
 ///
 /// Strips the current package prefix to produce relative paths (matching prost behavior).
 /// E.g. with package "example": ".example.Outer.Inner" -> "outer::Inner"
-fn fqn_to_rust_path(fqn: &str, current_package: &str) -> String {
+fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
     let stripped = fqn.strip_prefix('.').unwrap_or(fqn);
 
-    // Strip the current package prefix to produce relative paths
-    let relative = if let Some(rest) = stripped.strip_prefix(current_package) {
+    // Strip the current scope prefix to produce relative paths.
+    // current_scope may include nesting (e.g., "google.rpc.BadRequest").
+    let relative = if let Some(rest) = stripped.strip_prefix(current_scope) {
         if let Some(without_dot) = rest.strip_prefix('.') {
             without_dot
         } else if rest.is_empty() {
             rest
         } else {
-            stripped // Package name is a prefix of a longer name, don't strip
+            stripped // Scope name is a prefix of a longer name, don't strip
         }
     } else {
         stripped
     };
+
+    // If the relative path is the same as the stripped path (no prefix was removed),
+    // check if the target shares a common ancestor with the current scope AND
+    // the target is within the same package (just at a different nesting depth).
+    // E.g., FQN ".google.rpc.LocalizedMessage" from scope "google.rpc.BadRequest"
+    // should produce "super::LocalizedMessage" because both are in "google.rpc" package,
+    // and BadRequest is a nested module one level deeper.
+    if relative == stripped && !current_scope.is_empty() {
+        let scope_parts: Vec<&str> = current_scope.split('.').collect();
+        let fqn_parts: Vec<&str> = stripped.split('.').collect();
+
+        // Find the longest common prefix
+        let common_len = scope_parts
+            .iter()
+            .zip(fqn_parts.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+
+        // Only use super:: when:
+        // 1. There IS a common prefix
+        // 2. The common prefix covers the entire target path except the last component
+        //    (meaning the target is a sibling type at the common ancestor level)
+        // 3. The scope goes deeper than the common prefix (nesting)
+        if common_len > 0
+            && common_len == fqn_parts.len() - 1
+            && scope_parts.len() > common_len
+        {
+            let supers_needed = scope_parts.len() - common_len;
+            let type_name = to_upper_camel(fqn_parts.last().unwrap());
+            let mut rust_parts = Vec::new();
+            for _ in 0..supers_needed {
+                rust_parts.push("super".to_string());
+            }
+            rust_parts.push(type_name);
+            return rust_parts.join("::");
+        }
+    }
 
     let parts: Vec<&str> = relative.split('.').collect();
     if parts.is_empty() || (parts.len() == 1 && parts[0].is_empty()) {
@@ -703,6 +741,16 @@ mod tests {
         assert_eq!(fqn_to_rust_path(".Foo", ""), "Foo");
         // Cross-package reference keeps prefix
         assert_eq!(fqn_to_rust_path(".other.Thing", "test"), "other::Thing");
+        // Same-package ref from nested scope uses super::
+        assert_eq!(
+            fqn_to_rust_path(".google.rpc.LocalizedMessage", "google.rpc.BadRequest"),
+            "super::LocalizedMessage"
+        );
+        // Cross-package ref from nested scope
+        assert_eq!(
+            fqn_to_rust_path(".google.protobuf.Any", "google.rpc.BadRequest"),
+            "google::protobuf::Any"
+        );
     }
 
     #[test]
