@@ -666,10 +666,7 @@ fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
         // 2. The common prefix covers the entire target path except the last component
         //    (meaning the target is a sibling type at the common ancestor level)
         // 3. The scope goes deeper than the common prefix (nesting)
-        if common_len > 0
-            && common_len == fqn_parts.len() - 1
-            && scope_parts.len() > common_len
-        {
+        if common_len > 0 && common_len == fqn_parts.len() - 1 && scope_parts.len() > common_len {
             let supers_needed = scope_parts.len() - common_len;
             let type_name = to_upper_camel(fqn_parts.last().unwrap());
             let mut rust_parts = Vec::new();
