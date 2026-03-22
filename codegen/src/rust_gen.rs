@@ -13,7 +13,7 @@ use protoc_rs_schema::*;
 /// Returns a map from module path (e.g. `"my.package"`) to generated Rust source code.
 /// Files without a package use an empty string key.
 pub fn generate_rust(fds: &FileDescriptorSet) -> Result<HashMap<String, String>, CodeGenError> {
-    let mut result = HashMap::new();
+    let mut result: HashMap<String, String> = HashMap::new();
     for file in &fds.file {
         let package = file.package.as_deref().unwrap_or("");
         let filename = if package.is_empty() {
@@ -29,7 +29,14 @@ pub fn generate_rust(fds: &FileDescriptorSet) -> Result<HashMap<String, String>,
         };
         let source = generate_file(file)?;
         if !source.trim().is_empty() {
-            result.insert(format!("{filename}.rs"), source);
+            let key = format!("{filename}.rs");
+            result
+                .entry(key)
+                .and_modify(|existing| {
+                    existing.push('\n');
+                    existing.push_str(&source);
+                })
+                .or_insert(source);
         }
     }
     Ok(result)
