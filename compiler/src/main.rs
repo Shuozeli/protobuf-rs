@@ -131,7 +131,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         descriptor_set_out,
         rust_out,
         include_imports,
-        include_source_info: include_source_info,
+        include_source_info,
         dump_schema,
         proto_files,
     })
