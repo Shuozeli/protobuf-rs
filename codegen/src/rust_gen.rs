@@ -668,7 +668,7 @@ fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
         // 3. The scope goes deeper than the common prefix (nesting)
         if common_len > 0 && common_len == fqn_parts.len() - 1 && scope_parts.len() > common_len {
             let supers_needed = scope_parts.len() - common_len;
-            let type_name = to_upper_camel(fqn_parts.last().unwrap());
+            let type_name = to_upper_camel(fqn_parts.last().unwrap_or(&"Unknown"));
             let mut rust_parts = Vec::new();
             for _ in 0..supers_needed {
                 rust_parts.push("super".to_string());

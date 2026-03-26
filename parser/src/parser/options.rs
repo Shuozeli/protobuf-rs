@@ -112,7 +112,12 @@ pub(super) fn apply_file_option(
                 "SPEED" => Some(OptimizeMode::Speed),
                 "CODE_SIZE" => Some(OptimizeMode::CodeSize),
                 "LITE_RUNTIME" => Some(OptimizeMode::LiteRuntime),
-                _ => None,
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unknown value \"{}\" for optimize_for.", s),
+                        span: Span::default(),
+                    })
+                }
             };
         }
         "cc_generic_services" => {
@@ -197,7 +202,12 @@ pub(super) fn apply_field_option(
                 "JS_NORMAL" => Some(FieldJsType::JsNormal),
                 "JS_STRING" => Some(FieldJsType::JsString),
                 "JS_NUMBER" => Some(FieldJsType::JsNumber),
-                _ => None,
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unknown value \"{}\" for jstype.", s),
+                        span: Span::default(),
+                    })
+                }
             };
         }
         "ctype" => {
@@ -206,7 +216,12 @@ pub(super) fn apply_field_option(
                 "STRING" => Some(FieldCType::String),
                 "CORD" => Some(FieldCType::Cord),
                 "STRING_PIECE" => Some(FieldCType::StringPiece),
-                _ => None,
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unknown value \"{}\" for ctype.", s),
+                        span: Span::default(),
+                    })
+                }
             };
         }
         "default" | "json_name" => {
@@ -468,21 +483,18 @@ pub(super) fn apply_method_option(
             opts.deprecated = Some(expect_bool_option(&name, &value, P)?);
         }
         "idempotency_level" => {
-            if let OptionValue::Ident(s) = &value {
-                match s.as_str() {
-                    "IDEMPOTENCY_UNKNOWN" => {
-                        opts.idempotency_level = Some(IdempotencyLevel::IdempotencyUnknown)
-                    }
-                    "NO_SIDE_EFFECTS" => {
-                        opts.idempotency_level = Some(IdempotencyLevel::NoSideEffects)
-                    }
-                    "IDEMPOTENT" => opts.idempotency_level = Some(IdempotencyLevel::Idempotent),
-                    _ => {
-                        opts.uninterpreted_option
-                            .push(make_uninterpreted(&name, &value));
-                    }
+            let s = expect_enum_option(&name, &value, P)?;
+            opts.idempotency_level = match s.as_str() {
+                "IDEMPOTENCY_UNKNOWN" => Some(IdempotencyLevel::IdempotencyUnknown),
+                "NO_SIDE_EFFECTS" => Some(IdempotencyLevel::NoSideEffects),
+                "IDEMPOTENT" => Some(IdempotencyLevel::Idempotent),
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unknown value \"{}\" for idempotency_level.", s),
+                        span: Span::default(),
+                    })
                 }
-            }
+            };
         }
         _ => {
             opts.uninterpreted_option

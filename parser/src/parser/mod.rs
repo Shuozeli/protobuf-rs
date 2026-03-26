@@ -1117,7 +1117,7 @@ impl Parser {
                     message:
                         "Field labels (required/optional/repeated) are not allowed on map fields."
                             .to_string(),
-                    span: field.source_span.unwrap(),
+                    span: field.source_span.unwrap_or_default(),
                 });
             }
         }

@@ -114,6 +114,15 @@ impl AnalyzeContext {
         }
     }
 
+    /// Retrieve a loaded file by name, returning an error if not found.
+    fn get_file(&self, name: &str) -> Result<&FileDescriptorProto, AnalyzeError> {
+        self.loaded.get(name).ok_or_else(|| AnalyzeError {
+            message: format!("internal error: file '{}' not found in loaded map", name),
+            file: Some(name.to_string()),
+            span: None,
+        })
+    }
+
     /// Load a file and all its transitive imports.
     fn load_file(
         &mut self,
@@ -163,7 +172,7 @@ impl AnalyzeContext {
         self.load_order.push(name.clone());
 
         // Register symbols from this file
-        let file = self.loaded.get(&name).unwrap().clone();
+        let file = self.get_file(&name)?.clone();
         let pkg = file.package.as_deref().unwrap_or("");
 
         // Register package components and check for conflicts with non-package symbols
@@ -189,11 +198,7 @@ impl AnalyzeContext {
             }
         }
 
-        let prefix = if pkg.is_empty() {
-            ".".to_string()
-        } else {
-            format!(".{}.", pkg)
-        };
+        let prefix = make_fqn_prefix(pkg);
 
         self.register_messages(&prefix, &file.message_type)?;
         self.register_enums(&prefix, &file.enum_type)?;
@@ -267,7 +272,7 @@ impl AnalyzeContext {
         let file_names: Vec<String> = self.load_order.clone();
 
         for file_name in &file_names {
-            let file = self.loaded.get(file_name).unwrap().clone();
+            let file = self.get_file(file_name)?.clone();
             let pkg = file.package.as_deref().unwrap_or("");
 
             // Collect visible symbols for this file (direct imports + public transitive)
@@ -284,9 +289,9 @@ impl AnalyzeContext {
             // Resolve extension fields (type + extendee)
             let pkg_scope = resolve::make_fqn_scope(pkg);
             for ext in &mut resolved_file.extension {
-                self.resolve_field_type(ext, pkg, pkg, &visible)?;
+                self.resolve_field_type(ext, pkg, &visible)?;
                 if let Some(ref extendee) = ext.extendee {
-                    let resolved = self.resolve_type_name(extendee, &pkg_scope, pkg, &visible)?;
+                    let resolved = self.resolve_type_name(extendee, &pkg_scope, &visible)?;
                     // Extendee must be a message type
                     if let Some(&kind) = self.symbols.get(&resolved) {
                         if kind != SymbolKind::Message {
@@ -307,7 +312,7 @@ impl AnalyzeContext {
                 for method in &mut svc.method {
                     let method_name = method.name.as_deref().unwrap_or("<unknown>");
                     if let Some(ref input) = method.input_type {
-                        let resolved = self.resolve_type_name(input, &pkg_scope, pkg, &visible)?;
+                        let resolved = self.resolve_type_name(input, &pkg_scope, &visible)?;
                         // Input type must be a message
                         if let Some(&kind) = self.symbols.get(&resolved) {
                             if kind != SymbolKind::Message {
@@ -324,7 +329,7 @@ impl AnalyzeContext {
                         method.input_type = Some(resolved);
                     }
                     if let Some(ref output) = method.output_type {
-                        let resolved = self.resolve_type_name(output, &pkg_scope, pkg, &visible)?;
+                        let resolved = self.resolve_type_name(output, &pkg_scope, &visible)?;
                         // Output type must be a message
                         if let Some(&kind) = self.symbols.get(&resolved) {
                             if kind != SymbolKind::Message {
@@ -357,14 +362,14 @@ impl AnalyzeContext {
         visible: &HashSet<String>,
     ) -> Result<(), AnalyzeError> {
         for field in &mut msg.field {
-            self.resolve_field_type(field, msg_fqn, file_pkg, visible)?;
+            self.resolve_field_type(field, msg_fqn, visible)?;
         }
         for ext in &mut msg.extension {
-            self.resolve_field_type(ext, msg_fqn, file_pkg, visible)?;
+            self.resolve_field_type(ext, msg_fqn, visible)?;
             // Resolve extendee and check it's a message
             if let Some(ref extendee) = ext.extendee {
                 let pkg_scope = resolve::make_fqn_scope(file_pkg);
-                let resolved = self.resolve_type_name(extendee, &pkg_scope, file_pkg, visible)?;
+                let resolved = self.resolve_type_name(extendee, &pkg_scope, visible)?;
                 if let Some(&kind) = self.symbols.get(&resolved) {
                     if kind != SymbolKind::Message {
                         return Err(AnalyzeError {
@@ -388,7 +393,6 @@ impl AnalyzeContext {
         &self,
         field: &mut FieldDescriptorProto,
         scope: &str,
-        file_pkg: &str,
         visible: &HashSet<String>,
     ) -> Result<(), AnalyzeError> {
         // Only resolve if type_name is set (message/enum references)
@@ -401,7 +405,7 @@ impl AnalyzeContext {
             {
                 return Ok(());
             }
-            let resolved = self.resolve_type_name(type_name, scope, file_pkg, visible)?;
+            let resolved = self.resolve_type_name(type_name, scope, visible)?;
             let kind = self
                 .symbols
                 .get(&resolved)
@@ -443,10 +447,9 @@ impl AnalyzeContext {
         &self,
         name: &str,
         scope: &str,
-        file_pkg: &str,
         visible: &HashSet<String>,
     ) -> Result<String, AnalyzeError> {
-        resolve::resolve_type_name(name, scope, file_pkg, &self.symbols, visible)
+        resolve::resolve_type_name(name, scope, &self.symbols, visible)
     }
 
     /// Collect all symbols visible to a file (from its imports).
@@ -462,11 +465,7 @@ impl AnalyzeContext {
 
         // All symbols from the file itself are visible
         let pkg = file.package.as_deref().unwrap_or("");
-        let prefix = if pkg.is_empty() {
-            ".".to_string()
-        } else {
-            format!(".{}.", pkg)
-        };
+        let prefix = make_fqn_prefix(pkg);
         self.collect_symbols_from_prefix(
             &prefix,
             &file.message_type,
@@ -478,11 +477,7 @@ impl AnalyzeContext {
         for dep_name in file.dependency.iter() {
             if let Some(dep_file) = self.loaded.get(dep_name) {
                 let dep_pkg = dep_file.package.as_deref().unwrap_or("");
-                let dep_prefix = if dep_pkg.is_empty() {
-                    ".".to_string()
-                } else {
-                    format!(".{}.", dep_pkg)
-                };
+                let dep_prefix = make_fqn_prefix(dep_pkg);
                 self.collect_symbols_from_prefix(
                     &dep_prefix,
                     &dep_file.message_type,
@@ -503,11 +498,7 @@ impl AnalyzeContext {
             if let Some(dep_name) = file.dependency.get(pub_idx as usize) {
                 if let Some(dep_file) = self.loaded.get(dep_name) {
                     let dep_pkg = dep_file.package.as_deref().unwrap_or("");
-                    let dep_prefix = if dep_pkg.is_empty() {
-                        ".".to_string()
-                    } else {
-                        format!(".{}.", dep_pkg)
-                    };
+                    let dep_prefix = make_fqn_prefix(dep_pkg);
                     self.collect_symbols_from_prefix(
                         &dep_prefix,
                         &dep_file.message_type,
@@ -550,7 +541,7 @@ impl AnalyzeContext {
     /// Run validation passes on all files.
     fn validate_all(&self) -> Result<(), AnalyzeError> {
         for file_name in &self.load_order {
-            let file = self.loaded.get(file_name).unwrap();
+            let file = self.get_file(file_name)?;
             validate::validate_file(file)?;
         }
         // Post-resolve validation: check lite runtime import restrictions
@@ -567,7 +558,7 @@ impl AnalyzeContext {
     /// Validate that non-lite files do not import lite runtime files.
     fn validate_lite_imports(&self) -> Result<(), AnalyzeError> {
         for file_name in &self.load_order {
-            let file = self.loaded.get(file_name).unwrap();
+            let file = self.get_file(file_name)?;
             let self_is_lite = file
                 .options
                 .as_ref()
@@ -606,7 +597,7 @@ impl AnalyzeContext {
     /// Validate that enum field default values reference valid enum value names.
     fn validate_enum_defaults(&self) -> Result<(), AnalyzeError> {
         for file_name in &self.load_order {
-            let file = self.loaded.get(file_name).unwrap();
+            let file = self.get_file(file_name)?;
             for msg in &file.message_type {
                 self.validate_enum_defaults_in_message(msg, file_name)?;
             }
@@ -666,11 +657,7 @@ impl AnalyzeContext {
         fqn: &str,
     ) -> Option<&'a EnumDescriptorProto> {
         let pkg = file.package.as_deref().unwrap_or("");
-        let prefix = if pkg.is_empty() {
-            ".".to_string()
-        } else {
-            format!(".{}.", pkg)
-        };
+        let prefix = make_fqn_prefix(pkg);
         for e in &file.enum_type {
             let name = format!("{}{}", prefix, e.name.as_deref().unwrap_or(""));
             if name == fqn {
@@ -708,7 +695,7 @@ impl AnalyzeContext {
     /// Validate extension option names resolve to actual extensions.
     fn validate_extension_options(&self) -> Result<(), AnalyzeError> {
         for file_name in &self.load_order {
-            let file = self.loaded.get(file_name).unwrap();
+            let file = self.get_file(file_name)?;
             let pkg = file.package.as_deref().unwrap_or("");
             let scope = resolve::make_fqn_scope(pkg);
 
@@ -834,7 +821,7 @@ impl AnalyzeContext {
     /// - Implicit presence fields cannot have defaults.
     fn validate_features(&self) -> Result<(), AnalyzeError> {
         for file_name in &self.load_order {
-            let file = self.loaded.get(file_name).unwrap();
+            let file = self.get_file(file_name)?;
             let is_editions = file.syntax.as_deref() == Some("editions");
 
             if !is_editions {
@@ -964,6 +951,16 @@ impl AnalyzeContext {
             }
             Self::normalize_labels(&mut msg.nested_type);
         }
+    }
+}
+
+/// Build a fully-qualified name prefix from a package string.
+/// Returns `"."` for empty packages, or `".pkg."` for non-empty ones.
+fn make_fqn_prefix(pkg: &str) -> String {
+    if pkg.is_empty() {
+        ".".to_string()
+    } else {
+        format!(".{}.", pkg)
     }
 }
 

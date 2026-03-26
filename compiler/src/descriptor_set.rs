@@ -499,10 +499,9 @@ fn encode_uninterpreted_option(opt: &UninterpretedOption) -> Vec<u8> {
     }
     // 6: double_value
     if let Some(ref v) = opt.double_value {
-        if let Ok(d) = v.parse::<f64>() {
-            encode_tag(&mut buf, 6, 1); // wire type 1 = fixed64
-            buf.extend_from_slice(&d.to_le_bytes());
-        }
+        let d = v.parse::<f64>().unwrap_or(f64::NAN);
+        encode_tag(&mut buf, 6, 1); // wire type 1 = fixed64
+        buf.extend_from_slice(&d.to_le_bytes());
     }
     // 7: string_value
     if let Some(ref v) = opt.string_value {

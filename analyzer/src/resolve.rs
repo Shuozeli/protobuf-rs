@@ -38,7 +38,6 @@ pub fn make_fqn_scope(pkg: &str) -> String {
 pub fn resolve_type_name(
     name: &str,
     scope: &str,
-    _file_pkg: &str,
     symbols: &HashMap<String, SymbolKind>,
     visible: &HashSet<String>,
 ) -> Result<String, AnalyzeError> {

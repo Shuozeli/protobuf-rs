@@ -46,7 +46,7 @@ struct ParsedArgs {
     descriptor_set_out: Option<PathBuf>,
     rust_out: Option<PathBuf>,
     include_imports: bool,
-    _include_source_info: bool,
+    include_source_info: bool,
     dump_schema: bool,
     proto_files: Vec<PathBuf>,
 }
@@ -131,7 +131,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         descriptor_set_out,
         rust_out,
         include_imports,
-        _include_source_info: include_source_info,
+        include_source_info: include_source_info,
         dump_schema,
         proto_files,
     })
@@ -178,7 +178,7 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
         }
 
         // Strip source_code_info unless --include_source_info is set
-        if !args._include_source_info {
+        if !args.include_source_info {
             for file in &mut output_fds.file {
                 file.source_code_info = None;
             }
