@@ -89,11 +89,10 @@ pub(super) fn parse_int(s: &str) -> Result<u64, String> {
 
 /// Check if a string is a valid protobuf identifier ([a-zA-Z_][a-zA-Z0-9_]*).
 pub(super) fn is_valid_identifier(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
     let mut chars = s.chars();
-    let first = chars.next().unwrap();
+    let Some(first) = chars.next() else {
+        return false;
+    };
     if !first.is_ascii_alphabetic() && first != '_' {
         return false;
     }

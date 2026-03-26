@@ -34,6 +34,14 @@ Last updated: 2026-03-26 (Phase 3 fixes applied)
 - **M6: Unused `_file_pkg` parameter** -- Fixed. Removed from `resolve::resolve_type_name` and its wrapper `AnalyzeContext::resolve_type_name`. Also cleaned up `resolve_field_type` which no longer needed it. All call sites updated.
 - **M7: Misleading underscore prefix on used field** -- Fixed. Renamed `_include_source_info` to `include_source_info` in `compiler/src/main.rs`.
 
+## Resolved -- This Review (2026-03-26)
+
+- **R1: `unwrap()` in `is_valid_identifier`** -- `parser/src/parser/parse_helpers.rs:96`. Replaced `chars.next().unwrap()` with `let Some(first) = chars.next() else { return false; }` pattern. Removes unwrap from non-test code.
+- **R2: `unwrap()` in group json_name** -- `parser/src/parser/mod.rs:1203`. Replaced `field.name.as_ref().unwrap()` with `if let Some(ref name) = field.name` guard. Removes unwrap from non-test code.
+- **R3: `expect()` in `generate_data`** -- `proto-gen/src/data_gen.rs:15`. Replaced `.expect("root message not found")` with `let Some(root) = ... else { return Vec::new(); }`. Library code no longer panics.
+- **R4: Unnecessary `syntax.clone()`** -- `codegen/src/rust_gen.rs:52`. Removed clone; `syntax` is now moved into the struct directly since `syntax_enum()` returns an owned value.
+- **R5: Clippy `type_complexity` warning** -- `conformance/tests/conformance_test.rs:197`. Extracted `type CheckFn` alias to silence clippy warning. Zero clippy warnings now.
+
 ## Skipped -- Medium Priority
 
 ### M2. Duplicate collect_symbols_from_prefix calls
@@ -58,22 +66,17 @@ Last updated: 2026-03-26 (Phase 3 fixes applied)
 - **Problem:** Contains only a comment. The crate only has integration tests; the empty `lib.rs` is unnecessary but harmless.
 - **Status:** Skipped -- harmless, no functional impact.
 
-### L2. `proto-gen/src/data_gen.rs:15` -- `generate_data` panics via `.expect()`
-- **Location:** `proto-gen/src/data_gen.rs:15`
-- **Problem:** Library function panics instead of returning `Result`. While `proto-gen` is primarily a test utility, panic-free libraries are preferable.
-- **Status:** Skipped -- test utility only.
-
-### L3. Duplicate varint/tag encoding across crates
+### L2. Duplicate varint/tag encoding across crates
 - **Location:** `compiler/src/descriptor_set.rs:20-34` and `proto-gen/src/data_gen.rs:166-182`
 - **Problem:** Identical varint and tag encoding logic implemented independently. Not trivially consolidatable because `proto-gen` deliberately does not depend on `schema`.
 - **Status:** Skipped -- accepted as cost of crate independence.
 
-### L4. Banner/divider comments in proto-gen
+### L3. Banner/divider comments in proto-gen
 - **Status:** Skipped -- cosmetic only.
 
-### L5. FieldTypeDef duplicates FieldType from schema crate
+### L4. FieldTypeDef duplicates FieldType from schema crate
 - **Status:** Skipped -- intentional design choice for crate independence.
 
 ## Resolved -- Low Priority
 
-- **L6: fqn_parts.last().unwrap() in codegen** -- Fixed. Replaced with `.unwrap_or(&"Unknown")` at `codegen/src/rust_gen.rs`.
+- **L5: fqn_parts.last().unwrap() in codegen** -- Fixed. Replaced with `.unwrap_or(&"Unknown")` at `codegen/src/rust_gen.rs`.

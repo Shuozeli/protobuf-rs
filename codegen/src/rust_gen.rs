@@ -49,7 +49,7 @@ fn generate_file(file: &FileDescriptorProto) -> Result<String, CodeGenError> {
     let mut gen = RustGen {
         buf: String::new(),
         indent: 0,
-        syntax: syntax.clone(),
+        syntax,
         package: package.to_string(),
         nesting: Vec::new(),
     };

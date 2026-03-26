@@ -8,11 +8,13 @@ use rand::rngs::StdRng;
 use rand::Rng;
 
 pub fn generate_data(rng: &mut StdRng, schema: &SchemaIR, config: &GenConfig) -> Vec<u8> {
-    let root = schema
+    let Some(root) = schema
         .messages
         .iter()
         .find(|m| m.name == schema.root_message)
-        .expect("root message not found in schema");
+    else {
+        return Vec::new();
+    };
     let max_depth = config.max_nesting_depth.max(1);
     encode_message(rng, root, schema, 0, max_depth)
 }

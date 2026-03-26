@@ -194,10 +194,8 @@ fn tier2b_structural_validation() {
     let mut issues = Vec::new();
 
     // Files with known structure we can validate
-    let checks: Vec<(
-        &str,
-        Box<dyn Fn(&protoc_rs_schema::FileDescriptorProto) -> Option<String>>,
-    )> = vec![
+    type CheckFn = Box<dyn Fn(&protoc_rs_schema::FileDescriptorProto) -> Option<String>>;
+    let checks: Vec<(&str, CheckFn)> = vec![
         (
             "googleapis/google/api/http.proto",
             Box::new(|fd| {

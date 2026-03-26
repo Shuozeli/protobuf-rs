@@ -1200,7 +1200,9 @@ impl Parser {
             field.type_name = Some(name.clone());
 
             if field.json_name.is_none() {
-                field.json_name = Some(to_camel_case(field.name.as_ref().unwrap()));
+                if let Some(ref name) = field.name {
+                    field.json_name = Some(to_camel_case(name));
+                }
             }
 
             return Ok((field, Some(group_msg)));
