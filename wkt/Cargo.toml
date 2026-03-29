@@ -1,0 +1,8 @@
+[package]
+name = "protoc-rs-wkt"
+version = "0.1.0"
+edition = "2021"
+description = "Pre-generated runtime-backed well-known protobuf types (Timestamp, Duration, Any, etc.)"
+
+[dependencies]
+protoc-rs-runtime = { path = "../runtime" }

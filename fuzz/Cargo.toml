@@ -1,0 +1,37 @@
+[package]
+name = "protobuf-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+protoc-rs-runtime = { path = "../runtime", features = ["json"] }
+serde_json = "1"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_decode"
+path = "fuzz_targets/fuzz_decode.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_encode_decode"
+path = "fuzz_targets/fuzz_encode_decode.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_varint"
+path = "fuzz_targets/fuzz_varint.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_json_enum"
+path = "fuzz_targets/fuzz_json_enum.rs"
+doc = false

@@ -1,0 +1,24 @@
+[package]
+name = "protoc-rs-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Pure Rust protobuf runtime library for encoding, decoding, and message types"
+
+[features]
+default = ["std"]
+std = []
+json = ["std", "dep:serde", "dep:serde_json"]
+
+[dependencies]
+thiserror = { version = "2", default-features = false }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+criterion = "0.5"
+
+[[bench]]
+name = "wire_bench"
+harness = false

@@ -11,4 +11,7 @@ members = [
     "proto-gen",
     "conformance",
     "wasm-api",
+    "runtime",
+    "wkt",
+    "build",
 ]

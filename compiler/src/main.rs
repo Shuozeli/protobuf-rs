@@ -36,6 +36,8 @@ Options:
       --include_imports             Include imported files in descriptor set
       --include_source_info         Include source code info in descriptor set
       --rust_out <DIR>               Generate prost-compatible Rust code to DIR
+      --runtime_out <DIR>            Generate runtime-backed Rust code to DIR
+      --runtime_out_json             Enable serde JSON derives in runtime codegen
       --dump-schema                 Dump parsed schema to stderr
   -h, --help                        Show this help message"
     );
@@ -45,6 +47,8 @@ struct ParsedArgs {
     include_paths: Vec<PathBuf>,
     descriptor_set_out: Option<PathBuf>,
     rust_out: Option<PathBuf>,
+    runtime_out: Option<PathBuf>,
+    runtime_out_json: bool,
     include_imports: bool,
     include_source_info: bool,
     dump_schema: bool,
@@ -55,6 +59,8 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
     let mut include_paths = Vec::new();
     let mut descriptor_set_out = None;
     let mut rust_out = None;
+    let mut runtime_out = None;
+    let mut runtime_out_json = false;
     let mut include_imports = false;
     let mut include_source_info = false;
     let mut dump_schema = false;
@@ -94,8 +100,17 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                     .ok_or_else(|| format!("{} requires an argument", arg))?;
                 rust_out = Some(PathBuf::from(path));
             }
+            "--runtime_out" => {
+                i += 1;
+                let path = args
+                    .get(i)
+                    .ok_or_else(|| format!("{} requires an argument", arg))?;
+                runtime_out = Some(PathBuf::from(path));
+            }
+            "--runtime_out_json" => {
+                runtime_out_json = true;
+            }
             _ if arg.starts_with("-I") => {
-                // Support -I<path> (no space)
                 include_paths.push(PathBuf::from(&arg[2..]));
             }
             _ if arg.starts_with("--proto_path=") => {
@@ -106,6 +121,9 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
             }
             _ if arg.starts_with("--rust_out=") => {
                 rust_out = Some(PathBuf::from(&arg["--rust_out=".len()..]));
+            }
+            _ if arg.starts_with("--runtime_out=") => {
+                runtime_out = Some(PathBuf::from(&arg["--runtime_out=".len()..]));
             }
             _ if arg.starts_with('-') => {
                 return Err(format!("unknown flag: {}", arg));
@@ -121,7 +139,6 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         return Err("no input files".to_string());
     }
 
-    // If no include paths given, use the current directory
     if include_paths.is_empty() {
         include_paths.push(PathBuf::from("."));
     }
@@ -130,6 +147,8 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         include_paths,
         descriptor_set_out,
         rust_out,
+        runtime_out,
+        runtime_out_json,
         include_imports,
         include_source_info,
         dump_schema,
@@ -140,7 +159,6 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
 fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
     let resolver = FsResolver::new(args.include_paths.clone());
 
-    // Compute relative proto paths for the root files
     let root_names: Vec<String> = args
         .proto_files
         .iter()
@@ -167,7 +185,6 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
     if let Some(ref out_path) = args.descriptor_set_out {
         let mut output_fds = fds.clone();
 
-        // If --include_imports is not set, only include the root files
         if !args.include_imports {
             output_fds.file.retain(|f| {
                 f.name
@@ -177,7 +194,6 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
             });
         }
 
-        // Strip source_code_info unless --include_source_info is set
         if !args.include_source_info {
             for file in &mut output_fds.file {
                 file.source_code_info = None;
@@ -185,70 +201,56 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
         }
 
         let bytes = serialize_descriptor_set(&output_fds);
-
-        if out_path.to_str() == Some("/dev/stdout") || out_path.to_str() == Some("-") {
-            use std::io::Write;
-            std::io::stdout()
-                .write_all(&bytes)
-                .map_err(|e| AnalyzeError {
-                    message: format!("failed to write to stdout: {}", e),
-                    file: None,
-                    span: None,
-                })?;
-        } else {
-            // Create parent directory if needed
-            if let Some(parent) = out_path.parent() {
-                if !parent.exists() {
-                    std::fs::create_dir_all(parent).map_err(|e| AnalyzeError {
-                        message: format!("failed to create directory {}: {}", parent.display(), e),
-                        file: None,
-                        span: None,
-                    })?;
-                }
-            }
-            std::fs::write(out_path, &bytes).map_err(|e| AnalyzeError {
-                message: format!("failed to write {}: {}", out_path.display(), e),
-                file: None,
-                span: None,
-            })?;
-        }
-
+        write_output(out_path, &bytes)?;
         eprintln!("Wrote {} bytes to {}", bytes.len(), out_path.display());
     }
 
+    // Prost-compatible codegen
     if let Some(ref out_dir) = args.rust_out {
         let files = protoc_rs_codegen::generate_rust(&fds).map_err(|e| AnalyzeError {
             message: format!("codegen failed: {}", e),
             file: None,
             span: None,
         })?;
-
-        if !out_dir.exists() {
-            std::fs::create_dir_all(out_dir).map_err(|e| AnalyzeError {
-                message: format!("failed to create directory {}: {}", out_dir.display(), e),
-                file: None,
-                span: None,
-            })?;
-        }
-
-        for (filename, content) in &files {
-            let path = out_dir.join(filename);
-            std::fs::write(&path, content).map_err(|e| AnalyzeError {
-                message: format!("failed to write {}: {}", path.display(), e),
-                file: None,
-                span: None,
-            })?;
-        }
-
+        write_codegen_files(out_dir, &files)?;
         eprintln!(
-            "Generated {} Rust file(s) in {}",
+            "Generated {} Rust file(s) in {} (prost backend)",
             files.len(),
             out_dir.display()
         );
     }
 
-    if args.descriptor_set_out.is_none() && !args.dump_schema && args.rust_out.is_none() {
-        // Nothing to do -- at least confirm the files parse successfully
+    // Runtime-backed codegen
+    if let Some(ref out_dir) = args.runtime_out {
+        let options = protoc_rs_codegen::RuntimeCodeGenOptions {
+            emit_serde: args.runtime_out_json,
+        };
+        let files =
+            protoc_rs_codegen::generate_rust_runtime_with_options(&fds, &options).map_err(
+                |e| AnalyzeError {
+                    message: format!("runtime codegen failed: {}", e),
+                    file: None,
+                    span: None,
+                },
+            )?;
+        write_codegen_files(out_dir, &files)?;
+        eprintln!(
+            "Generated {} Rust file(s) in {} (runtime backend{})",
+            files.len(),
+            out_dir.display(),
+            if args.runtime_out_json {
+                " + serde"
+            } else {
+                ""
+            }
+        );
+    }
+
+    if args.descriptor_set_out.is_none()
+        && !args.dump_schema
+        && args.rust_out.is_none()
+        && args.runtime_out.is_none()
+    {
         eprintln!(
             "Parsed {} file(s) successfully ({} total with imports)",
             root_names.len(),
@@ -256,5 +258,56 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
         );
     }
 
+    Ok(())
+}
+
+fn write_output(path: &PathBuf, bytes: &[u8]) -> Result<(), AnalyzeError> {
+    if path.to_str() == Some("/dev/stdout") || path.to_str() == Some("-") {
+        use std::io::Write;
+        std::io::stdout()
+            .write_all(bytes)
+            .map_err(|e| AnalyzeError {
+                message: format!("failed to write to stdout: {}", e),
+                file: None,
+                span: None,
+            })?;
+    } else {
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).map_err(|e| AnalyzeError {
+                    message: format!("failed to create directory {}: {}", parent.display(), e),
+                    file: None,
+                    span: None,
+                })?;
+            }
+        }
+        std::fs::write(path, bytes).map_err(|e| AnalyzeError {
+            message: format!("failed to write {}: {}", path.display(), e),
+            file: None,
+            span: None,
+        })?;
+    }
+    Ok(())
+}
+
+fn write_codegen_files(
+    out_dir: &PathBuf,
+    files: &std::collections::HashMap<String, String>,
+) -> Result<(), AnalyzeError> {
+    if !out_dir.exists() {
+        std::fs::create_dir_all(out_dir).map_err(|e| AnalyzeError {
+            message: format!("failed to create directory {}: {}", out_dir.display(), e),
+            file: None,
+            span: None,
+        })?;
+    }
+    for (filename, content) in files {
+        let path = out_dir.join(filename);
+        std::fs::write(&path, content).map_err(|e| AnalyzeError {
+            message: format!("failed to write {}: {}", path.display(), e),
+            file: None,
+            span: None,
+        })?;
+    }
     Ok(())
 }

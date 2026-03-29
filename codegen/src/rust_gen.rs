@@ -627,7 +627,7 @@ fn strip_enum_prefix(enum_name: &str, value_name: &str) -> String {
 ///
 /// Strips the current package prefix to produce relative paths (matching prost behavior).
 /// E.g. with package "example": ".example.Outer.Inner" -> "outer::Inner"
-fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
+pub fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
     let stripped = fqn.strip_prefix('.').unwrap_or(fqn);
 
     // Strip the current scope prefix to produce relative paths.
