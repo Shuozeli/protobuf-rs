@@ -5,12 +5,10 @@
 //!
 //! ```no_run
 //! // build.rs
-//! fn main() {
-//!     protoc_rs_build::Config::new()
-//!         .include("proto/")
-//!         .compile(&["proto/my_service.proto"])
-//!         .expect("protobuf codegen failed");
-//! }
+//! protoc_rs_build::Config::new()
+//!     .include("proto/")
+//!     .compile(&["proto/my_service.proto"])
+//!     .expect("protobuf codegen failed");
 //! ```
 //!
 //! Then include the generated code in your crate:
@@ -22,7 +20,7 @@
 
 use protoc_rs_analyzer::{analyze_files, AnalyzeError};
 use protoc_rs_codegen::RuntimeCodeGenOptions;
-use protoc_rs_compiler::resolver::{FsResolver, relative_proto_path};
+use protoc_rs_compiler::resolver::{relative_proto_path, FsResolver};
 use std::path::{Path, PathBuf};
 
 /// Configuration for protobuf code generation.
@@ -63,9 +61,7 @@ impl Config {
     /// Compile the given `.proto` files and write generated Rust code.
     pub fn compile(self, proto_files: &[impl AsRef<Path>]) -> Result<(), CompileError> {
         let out_dir = self.out_dir.unwrap_or_else(|| {
-            PathBuf::from(
-                std::env::var("OUT_DIR").expect("OUT_DIR not set; run from build.rs"),
-            )
+            PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR not set; run from build.rs"))
         });
 
         let include_paths = if self.include_paths.is_empty() {

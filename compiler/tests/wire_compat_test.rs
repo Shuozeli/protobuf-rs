@@ -25,8 +25,7 @@ fn wire_compat_test(proto_source: &str, test_code: &str, test_name: &str) {
     let prost_files = protoc_rs_codegen::generate_rust(&fds)
         .unwrap_or_else(|e| panic!("{test_name}: prost codegen failed: {e}"));
 
-    let tmp = tempfile::tempdir()
-        .unwrap_or_else(|e| panic!("{test_name}: tempdir failed: {e}"));
+    let tmp = tempfile::tempdir().unwrap_or_else(|e| panic!("{test_name}: tempdir failed: {e}"));
     let project_dir = tmp.path().join(test_name);
     let src_dir = project_dir.join("src");
     std::fs::create_dir_all(&src_dir).unwrap();
@@ -56,7 +55,10 @@ prost = "0.14"
 
     // Write prost modules under prost_ prefix
     for (filename, source) in &prost_files {
-        let mod_name = format!("prost_{}", filename.trim_end_matches(".rs").replace('.', "_"));
+        let mod_name = format!(
+            "prost_{}",
+            filename.trim_end_matches(".rs").replace('.', "_")
+        );
         std::fs::write(src_dir.join(format!("{mod_name}.rs")), source).unwrap();
         mod_decls.push_str(&format!("#[allow(warnings)]\npub mod {mod_name};\n"));
     }
@@ -93,7 +95,10 @@ fn main() {{
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Wire compat test passed"), "{test_name}: missing success message");
+    assert!(
+        stdout.contains("Wire compat test passed"),
+        "{test_name}: missing success message"
+    );
 }
 
 #[test]

@@ -62,7 +62,10 @@ pub fn generate_rust_runtime_with_options(
     Ok(result)
 }
 
-fn generate_file(file: &FileDescriptorProto, options: &RuntimeCodeGenOptions) -> Result<String, CodeGenError> {
+fn generate_file(
+    file: &FileDescriptorProto,
+    options: &RuntimeCodeGenOptions,
+) -> Result<String, CodeGenError> {
     let features = ResolvedFeatures::from_file(file);
     let package = file.package.as_deref().unwrap_or("");
     let mut gen = RuntimeGen {
@@ -99,11 +102,13 @@ fn generate_file(file: &FileDescriptorProto, options: &RuntimeCodeGenOptions) ->
 
     // gRPC services
     if !file.service.is_empty() {
-        gen.buf.push_str(crate::service_gen_runtime::service_error_type());
+        gen.buf
+            .push_str(crate::service_gen_runtime::service_error_type());
         gen.buf.push('\n');
-        gen.buf.push_str(&crate::service_gen_runtime::generate_runtime_services(
-            file, package,
-        ));
+        gen.buf
+            .push_str(&crate::service_gen_runtime::generate_runtime_services(
+                file, package,
+            ));
     }
 
     Ok(gen.buf)
@@ -210,12 +215,7 @@ impl RuntimeGen {
         self.gen_default_instance_impl(&rust_name)?;
 
         // --- Message trait impl ---
-        self.gen_message_impl(
-            &rust_name,
-            msg,
-            &regular_fields,
-            &oneof_groups,
-        )?;
+        self.gen_message_impl(&rust_name, msg, &regular_fields, &oneof_groups)?;
 
         // --- View type ---
         self.gen_view_struct(&rust_name, msg, &regular_fields, &oneof_groups)?;
@@ -280,7 +280,7 @@ impl RuntimeGen {
         let mod_name = to_snake(msg.name.as_deref().unwrap_or("unknown"));
 
         // --- Struct ---
-        self.push_line(&format!("#[derive(Debug, PartialEq)]"));
+        self.push_line("#[derive(Debug, PartialEq)]");
         self.push_line(&format!("pub struct {view_name}<'a> {{"));
         self.indent += 1;
 
@@ -332,7 +332,9 @@ impl RuntimeGen {
         self.push_line("}");
 
         // --- MessageView impl ---
-        self.push_line(&format!("impl<'a> protoc_rs_runtime::view::MessageView<'a> for {view_name}<'a> {{"));
+        self.push_line(&format!(
+            "impl<'a> protoc_rs_runtime::view::MessageView<'a> for {view_name}<'a> {{"
+        ));
         self.indent += 1;
         self.gen_view_merge_field(msg, regular_fields, oneof_groups)?;
         self.indent -= 1;
@@ -349,7 +351,10 @@ impl RuntimeGen {
         field: &FieldDescriptorProto,
         parent_msg: &DescriptorProto,
     ) -> Result<(), CodeGenError> {
-        let name = field.name.as_deref().ok_or(CodeGenError::MissingFieldName)?;
+        let name = field
+            .name
+            .as_deref()
+            .ok_or(CodeGenError::MissingFieldName)?;
         let rust_name = to_snake(name);
         let label = field.label.unwrap_or(FieldLabel::Optional);
         let field_type = field.r#type.unwrap_or(FieldType::Int32);
@@ -400,7 +405,11 @@ impl RuntimeGen {
         }
     }
 
-    fn view_field_default(&self, field: &FieldDescriptorProto, parent_msg: &DescriptorProto) -> String {
+    fn view_field_default(
+        &self,
+        field: &FieldDescriptorProto,
+        parent_msg: &DescriptorProto,
+    ) -> String {
         let label = field.label.unwrap_or(FieldLabel::Optional);
         let field_type = field.r#type.unwrap_or(FieldType::Int32);
 
@@ -496,7 +505,9 @@ impl RuntimeGen {
         }
 
         // Unknown fields: just skip
-        self.push_line("_ => protoc_rs_runtime::wire::skip_field(buf, wire_type, recursion_limit),");
+        self.push_line(
+            "_ => protoc_rs_runtime::wire::skip_field(buf, wire_type, recursion_limit),",
+        );
 
         self.indent -= 1;
         self.push_line("}");
@@ -528,19 +539,29 @@ impl RuntimeGen {
             self.push_line("let (len, header) = protoc_rs_runtime::wire::decode_varint(buf)?;");
             self.push_line("let end = header + len as usize;");
             self.push_line("if end > buf.len() { return ::core::result::Result::Err(protoc_rs_runtime::DecodeError::UnexpectedEof); }");
-            self.push_line(&format!("let mut key: {} = Default::default();", view_scalar_type(key_type)));
+            self.push_line(&format!(
+                "let mut key: {} = Default::default();",
+                view_scalar_type(key_type)
+            ));
             if val_type == FieldType::Message {
                 let val_msg_type = self.view_field_type(val_field);
-                self.push_line(&format!("let mut val: {val_msg_type} = Default::default();"));
+                self.push_line(&format!(
+                    "let mut val: {val_msg_type} = Default::default();"
+                ));
             } else if val_type == FieldType::Enum {
                 self.push_line("let mut val: i32 = 0;");
             } else {
-                self.push_line(&format!("let mut val: {} = Default::default();", view_scalar_type(val_type)));
+                self.push_line(&format!(
+                    "let mut val: {} = Default::default();",
+                    view_scalar_type(val_type)
+                ));
             }
             self.push_line("let mut pos = header;");
             self.push_line("while pos < end {");
             self.indent += 1;
-            self.push_line("let (entry_tag, tc) = protoc_rs_runtime::wire::decode_tag(&buf[pos..])?;");
+            self.push_line(
+                "let (entry_tag, tc) = protoc_rs_runtime::wire::decode_tag(&buf[pos..])?;",
+            );
             self.push_line("pos += tc;");
             self.push_line("match entry_tag.field_number {");
             self.indent += 1;
@@ -574,7 +595,9 @@ impl RuntimeGen {
             self.indent -= 1;
             self.push_line("}");
             if val_type == FieldType::Enum {
-                self.push_line(&format!("self.{rust_name}.push((key, protoc_rs_runtime::EnumValue::from(val)));"));
+                self.push_line(&format!(
+                    "self.{rust_name}.push((key, protoc_rs_runtime::EnumValue::from(val)));"
+                ));
             } else {
                 self.push_line(&format!("self.{rust_name}.push((key, val));"));
             }
@@ -602,7 +625,9 @@ impl RuntimeGen {
             self.push_line(&decode);
             if label == FieldLabel::Repeated {
                 if field_type == FieldType::Enum {
-                    self.push_line(&format!("self.{rust_name}.push(protoc_rs_runtime::EnumValue::from(val as i32));"));
+                    self.push_line(&format!(
+                        "self.{rust_name}.push(protoc_rs_runtime::EnumValue::from(val as i32));"
+                    ));
                 } else {
                     self.push_line(&format!("self.{rust_name}.push(val);"));
                 }
@@ -610,10 +635,14 @@ impl RuntimeGen {
                 if field_type == FieldType::Enum {
                     self.push_line(&format!("self.{rust_name} = ::core::option::Option::Some(protoc_rs_runtime::EnumValue::from(val as i32));"));
                 } else {
-                    self.push_line(&format!("self.{rust_name} = ::core::option::Option::Some(val);"));
+                    self.push_line(&format!(
+                        "self.{rust_name} = ::core::option::Option::Some(val);"
+                    ));
                 }
             } else if field_type == FieldType::Enum {
-                self.push_line(&format!("self.{rust_name} = protoc_rs_runtime::EnumValue::from(val as i32);"));
+                self.push_line(&format!(
+                    "self.{rust_name} = protoc_rs_runtime::EnumValue::from(val as i32);"
+                ));
             } else {
                 self.push_line(&format!("self.{rust_name} = val;"));
             }
@@ -734,9 +763,7 @@ impl RuntimeGen {
             "impl<'a> ::core::convert::From<{view_name}<'a>> for {rust_name} {{"
         ));
         self.indent += 1;
-        self.push_line(&format!(
-            "fn from(view: {view_name}<'a>) -> Self {{"
-        ));
+        self.push_line(&format!("fn from(view: {view_name}<'a>) -> Self {{"));
         self.indent += 1;
         self.push_line("Self {");
         self.indent += 1;
@@ -750,14 +777,18 @@ impl RuntimeGen {
             if find_map_entry(field, msg).is_some() {
                 // Map: Vec<(K,V)> -> HashMap<K,V>
                 // For string keys/values: need .to_string() / .to_vec() / .into()
-                let key_field = msg.nested_type.iter()
+                let key_field = msg
+                    .nested_type
+                    .iter()
                     .find(|n| {
                         let tn = field.type_name.as_deref().unwrap_or("");
                         let short = tn.rsplit('.').next().unwrap_or("");
                         n.name.as_deref() == Some(short) && is_map_entry(n)
                     })
                     .and_then(|n| n.field.iter().find(|f| f.number == Some(1)));
-                let val_field_desc = msg.nested_type.iter()
+                let val_field_desc = msg
+                    .nested_type
+                    .iter()
                     .find(|n| {
                         let tn = field.type_name.as_deref().unwrap_or("");
                         let short = tn.rsplit('.').next().unwrap_or("");
@@ -766,7 +797,9 @@ impl RuntimeGen {
                     .and_then(|n| n.field.iter().find(|f| f.number == Some(2)));
 
                 let key_type = key_field.and_then(|f| f.r#type).unwrap_or(FieldType::Int32);
-                let val_type = val_field_desc.and_then(|f| f.r#type).unwrap_or(FieldType::Int32);
+                let val_type = val_field_desc
+                    .and_then(|f| f.r#type)
+                    .unwrap_or(FieldType::Int32);
                 let key_conv = view_to_owned_scalar_conv("k", key_type);
                 let val_conv = view_to_owned_conv("v", val_type);
                 self.push_line(&format!(
@@ -801,7 +834,9 @@ impl RuntimeGen {
             let oneof_rust_name = to_snake(oneof_name);
             let oneof_type_name = to_upper_camel(oneof_name);
 
-            self.push_line(&format!("{oneof_rust_name}: view.{oneof_rust_name}.map(|o| match o {{"));
+            self.push_line(&format!(
+                "{oneof_rust_name}: view.{oneof_rust_name}.map(|o| match o {{"
+            ));
             self.indent += 1;
 
             for field in fields {
@@ -846,7 +881,7 @@ impl RuntimeGen {
         let oneof_name = oneof.name.as_deref().unwrap_or("unknown");
         let rust_name = format!("{}View", to_upper_camel(oneof_name));
 
-        self.push_line(&format!("#[derive(Debug, PartialEq)]"));
+        self.push_line("#[derive(Debug, PartialEq)]");
         self.push_line(&format!("pub enum {rust_name}<'a> {{"));
         self.indent += 1;
 
@@ -873,10 +908,7 @@ impl RuntimeGen {
     // Extension generation
     // -----------------------------------------------------------------------
 
-    fn gen_extension(
-        &mut self,
-        field: &FieldDescriptorProto,
-    ) -> Result<(), CodeGenError> {
+    fn gen_extension(&mut self, field: &FieldDescriptorProto) -> Result<(), CodeGenError> {
         let name = field
             .name
             .as_deref()
@@ -885,7 +917,7 @@ impl RuntimeGen {
         let field_number = field.number.unwrap_or(0) as u32;
         let field_type = field.r#type.unwrap_or(FieldType::Int32);
         let extendee = field.extendee.as_deref().unwrap_or("Unknown");
-        let extendee_rust = fqn_to_rust_path(extendee, &self.current_fqn_prefix());
+        let _extendee_rust = fqn_to_rust_path(extendee, &self.current_fqn_prefix());
 
         if field_type == FieldType::Message {
             let msg_type = self.rust_field_type_runtime(field);
@@ -897,9 +929,7 @@ impl RuntimeGen {
             ));
             self.indent += 1;
             self.push_line(&format!("field_number: {field_number},"));
-            self.push_line(&format!(
-                "decode_fn: |buf| protoc_rs_runtime::decode(buf),"
-            ));
+            self.push_line("decode_fn: |buf| protoc_rs_runtime::decode(buf),");
             self.indent -= 1;
             self.push_line("};");
         } else {
@@ -1017,21 +1047,14 @@ impl RuntimeGen {
     ) -> Result<(), CodeGenError> {
         self.push_line(&format!("impl ::std::fmt::Debug for {rust_name} {{"));
         self.indent += 1;
-        self.push_line(
-            "fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {",
-        );
+        self.push_line("fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {");
         self.indent += 1;
         self.push_line(&format!("let mut s = f.debug_struct(\"{rust_name}\");"));
 
         for field in regular_fields {
             let name = field.name.as_deref().unwrap_or("unknown");
             let rust_name = to_snake(name);
-            // Skip map entries for debug -- they're just HashMap
-            if find_map_entry(field, msg).is_some() {
-                self.push_line(&format!("s.field(\"{rust_name}\", &self.{rust_name});"));
-            } else {
-                self.push_line(&format!("s.field(\"{rust_name}\", &self.{rust_name});"));
-            }
+            self.push_line(&format!("s.field(\"{rust_name}\", &self.{rust_name});"));
         }
 
         for (oneof_idx, _) in oneof_groups {
@@ -1169,14 +1192,12 @@ impl RuntimeGen {
             "unsafe impl protoc_rs_runtime::DefaultInstance for {rust_name} {{"
         ));
         self.indent += 1;
-        self.push_line(&format!("fn default_instance() -> &'static Self {{"));
+        self.push_line("fn default_instance() -> &'static Self {");
         self.indent += 1;
         self.push_line(&format!(
             "static INSTANCE: ::std::sync::OnceLock<{rust_name}> = ::std::sync::OnceLock::new();"
         ));
-        self.push_line(&format!(
-            "INSTANCE.get_or_init({rust_name}::default)"
-        ));
+        self.push_line(&format!("INSTANCE.get_or_init({rust_name}::default)"));
         self.indent -= 1;
         self.push_line("}");
         self.indent -= 1;
@@ -1202,7 +1223,9 @@ impl RuntimeGen {
             format!("{}.{}", self.package, rust_name)
         };
 
-        self.push_line(&format!("impl protoc_rs_runtime::Message for {rust_name} {{"));
+        self.push_line(&format!(
+            "impl protoc_rs_runtime::Message for {rust_name} {{"
+        ));
         self.indent += 1;
 
         // --- compute_size ---
@@ -1231,7 +1254,9 @@ impl RuntimeGen {
         self.indent -= 1;
         self.push_line("}");
 
-        self.push_line("fn unknown_fields_mut(&mut self) -> &mut protoc_rs_runtime::UnknownFields {");
+        self.push_line(
+            "fn unknown_fields_mut(&mut self) -> &mut protoc_rs_runtime::UnknownFields {",
+        );
         self.indent += 1;
         self.push_line("&mut self._unknown_fields");
         self.indent -= 1;
@@ -1273,17 +1298,14 @@ impl RuntimeGen {
             let oneof_name = oneof_decl.name.as_deref().unwrap_or("unknown");
             let oneof_rust_name = to_snake(oneof_name);
 
-            self.push_line(&format!("if let ::core::option::Option::Some(ref oneof) = self.{oneof_rust_name} {{"));
+            self.push_line(&format!(
+                "if let ::core::option::Option::Some(ref oneof) = self.{oneof_rust_name} {{"
+            ));
             self.indent += 1;
             self.push_line("match oneof {");
             self.indent += 1;
 
-            let mod_name = to_snake(
-                parent_msg
-                    .name
-                    .as_deref()
-                    .unwrap_or("unknown"),
-            );
+            let mod_name = to_snake(parent_msg.name.as_deref().unwrap_or("unknown"));
             let oneof_type_name = to_upper_camel(oneof_name);
 
             for field in fields {
@@ -1308,7 +1330,10 @@ impl RuntimeGen {
                         "{mod_name}::{oneof_type_name}::{variant_name}(ref v) => {{",
                     ));
                     self.indent += 1;
-                    let tag_size = format!("protoc_rs_runtime::wire::varint_len((({tag}u64) << 3) | {})", wire_type_for_field_type(field_type));
+                    let tag_size = format!(
+                        "protoc_rs_runtime::wire::varint_len((({tag}u64) << 3) | {})",
+                        wire_type_for_field_type(field_type)
+                    );
                     let val_size = if field_type == FieldType::Enum {
                         "protoc_rs_runtime::wire::varint_len(v.to_i32() as u64)".to_string()
                     } else {
@@ -1355,13 +1380,17 @@ impl RuntimeGen {
         if let Some((key_field, val_field)) = find_map_entry(field, parent_msg) {
             let key_type = key_field.r#type.unwrap_or(FieldType::Int32);
             let val_type = val_field.r#type.unwrap_or(FieldType::Int32);
-            self.push_line(&format!(
-                "for (k, v) in &self.{rust_name} {{"
-            ));
+            self.push_line(&format!("for (k, v) in &self.{rust_name} {{"));
             self.indent += 1;
             // Each map entry is a length-delimited message with field 1 = key, field 2 = value
-            let key_tag_size = format!("protoc_rs_runtime::wire::varint_len(((1u64) << 3) | {})", wire_type_for_field_type(key_type));
-            let val_tag_size = format!("protoc_rs_runtime::wire::varint_len(((2u64) << 3) | {})", wire_type_for_field_type(val_type));
+            let key_tag_size = format!(
+                "protoc_rs_runtime::wire::varint_len(((1u64) << 3) | {})",
+                wire_type_for_field_type(key_type)
+            );
+            let val_tag_size = format!(
+                "protoc_rs_runtime::wire::varint_len(((2u64) << 3) | {})",
+                wire_type_for_field_type(val_type)
+            );
             let key_val_size = scalar_compute_size_expr("k", key_type);
             let val_val_size = if val_type == FieldType::Message {
                 "protoc_rs_runtime::message::message_field_size(2, v) as usize".to_string()
@@ -1435,7 +1464,9 @@ impl RuntimeGen {
 
         let is_optional = self.is_field_optional(field);
         if is_optional {
-            self.push_line(&format!("if let ::core::option::Option::Some(ref v) = self.{rust_name} {{"));
+            self.push_line(&format!(
+                "if let ::core::option::Option::Some(ref v) = self.{rust_name} {{"
+            ));
             self.indent += 1;
             if field_type == FieldType::Enum {
                 let val_size = scalar_compute_size_expr("&v.to_i32()", FieldType::Int32);
@@ -1452,7 +1483,10 @@ impl RuntimeGen {
             self.push_line(&format!("if {default_check} {{"));
             self.indent += 1;
             if field_type == FieldType::Enum {
-                let val_size = scalar_compute_size_expr(&format!("&self.{rust_name}.to_i32()"), FieldType::Int32);
+                let val_size = scalar_compute_size_expr(
+                    &format!("&self.{rust_name}.to_i32()"),
+                    FieldType::Int32,
+                );
                 self.push_line(&format!("size += ({tag_size_expr} + {val_size}) as u32;"));
             } else {
                 let val_size = scalar_compute_size_expr(&format!("&self.{rust_name}"), field_type);
@@ -1490,7 +1524,9 @@ impl RuntimeGen {
             let mod_name = to_snake(parent_msg.name.as_deref().unwrap_or("unknown"));
             let oneof_type_name = to_upper_camel(oneof_name);
 
-            self.push_line(&format!("if let ::core::option::Option::Some(ref oneof) = self.{oneof_rust_name} {{"));
+            self.push_line(&format!(
+                "if let ::core::option::Option::Some(ref oneof) = self.{oneof_rust_name} {{"
+            ));
             self.indent += 1;
             self.push_line("match oneof {");
             self.indent += 1;
@@ -1512,9 +1548,13 @@ impl RuntimeGen {
                     ));
                 } else {
                     let wt = wire_type_enum_for_field_type(field_type);
-                    self.push_line(&format!("protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"));
+                    self.push_line(&format!(
+                        "protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"
+                    ));
                     if field_type == FieldType::Enum {
-                        self.push_line("protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);");
+                        self.push_line(
+                            "protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);",
+                        );
                     } else {
                         self.push_line(&scalar_write_expr("v", field_type));
                     }
@@ -1560,8 +1600,14 @@ impl RuntimeGen {
             // Write outer tag (length-delimited)
             self.push_line(&format!("protoc_rs_runtime::wire::encode_tag({tag}, protoc_rs_runtime::WireType::LengthDelimited, buf);"));
             // Compute entry size
-            let key_tag_size = format!("protoc_rs_runtime::wire::varint_len(((1u64) << 3) | {})", wire_type_for_field_type(key_type));
-            let val_tag_size = format!("protoc_rs_runtime::wire::varint_len(((2u64) << 3) | {})", wire_type_for_field_type(val_type));
+            let key_tag_size = format!(
+                "protoc_rs_runtime::wire::varint_len(((1u64) << 3) | {})",
+                wire_type_for_field_type(key_type)
+            );
+            let val_tag_size = format!(
+                "protoc_rs_runtime::wire::varint_len(((2u64) << 3) | {})",
+                wire_type_for_field_type(val_type)
+            );
             let key_val_size = scalar_compute_size_expr("k", key_type);
 
             let val_val_size = if val_type == FieldType::Message {
@@ -1583,15 +1629,21 @@ impl RuntimeGen {
             }
             self.push_line("protoc_rs_runtime::wire::encode_varint(entry_size as u64, buf);");
             // Write key field
-            self.push_line(&format!("protoc_rs_runtime::wire::encode_tag(1, {key_wt}, buf);"));
+            self.push_line(&format!(
+                "protoc_rs_runtime::wire::encode_tag(1, {key_wt}, buf);"
+            ));
             self.push_line(&scalar_write_expr("k", key_type));
             // Write value field
             if val_type == FieldType::Message {
                 self.push_line("protoc_rs_runtime::message::write_message_field(2, v, buf);");
             } else {
-                self.push_line(&format!("protoc_rs_runtime::wire::encode_tag(2, {val_wt}, buf);"));
+                self.push_line(&format!(
+                    "protoc_rs_runtime::wire::encode_tag(2, {val_wt}, buf);"
+                ));
                 if val_type == FieldType::Enum {
-                    self.push_line("protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);");
+                    self.push_line(
+                        "protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);",
+                    );
                 } else {
                     self.push_line(&scalar_write_expr("v", val_type));
                 }
@@ -1627,9 +1679,13 @@ impl RuntimeGen {
                         "protoc_rs_runtime::message::write_message_field({tag}, v, buf);"
                     ));
                 } else {
-                    self.push_line(&format!("protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"));
+                    self.push_line(&format!(
+                        "protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"
+                    ));
                     if field_type == FieldType::Enum {
-                        self.push_line("protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);");
+                        self.push_line(
+                            "protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);",
+                        );
                     } else {
                         self.push_line(&scalar_write_expr("v", field_type));
                     }
@@ -1653,9 +1709,13 @@ impl RuntimeGen {
 
         let is_optional = self.is_field_optional(field);
         if is_optional {
-            self.push_line(&format!("if let ::core::option::Option::Some(ref v) = self.{rust_name} {{"));
+            self.push_line(&format!(
+                "if let ::core::option::Option::Some(ref v) = self.{rust_name} {{"
+            ));
             self.indent += 1;
-            self.push_line(&format!("protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"));
+            self.push_line(&format!(
+                "protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"
+            ));
             if field_type == FieldType::Enum {
                 self.push_line("protoc_rs_runtime::wire::encode_varint(v.to_i32() as u64, buf);");
             } else {
@@ -1667,11 +1727,16 @@ impl RuntimeGen {
             let default_check = scalar_default_check(&rust_name, field_type);
             self.push_line(&format!("if {default_check} {{"));
             self.indent += 1;
-            self.push_line(&format!("protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"));
+            self.push_line(&format!(
+                "protoc_rs_runtime::wire::encode_tag({tag}, {wt}, buf);"
+            ));
             if field_type == FieldType::Enum {
                 self.push_line(&format!("protoc_rs_runtime::wire::encode_varint(self.{rust_name}.to_i32() as u64, buf);"));
             } else {
-                self.push_line(&scalar_write_expr(&format!("&self.{rust_name}"), field_type));
+                self.push_line(&scalar_write_expr(
+                    &format!("&self.{rust_name}"),
+                    field_type,
+                ));
             }
             self.indent -= 1;
             self.push_line("}");
@@ -1726,17 +1791,21 @@ impl RuntimeGen {
                     self.push_line(&format!(
                         "if wire_type != {expected_wt} {{ return ::core::result::Result::Err(protoc_rs_runtime::DecodeError::WireTypeMismatch {{ expected: {expected_wt}, actual: wire_type }}); }}"
                     ));
-                    self.push_line("let (len, header) = protoc_rs_runtime::wire::decode_varint(buf)?;");
+                    self.push_line(
+                        "let (len, header) = protoc_rs_runtime::wire::decode_varint(buf)?;",
+                    );
                     self.push_line("let end = header + len as usize;");
                     self.push_line("if end > buf.len() { return ::core::result::Result::Err(protoc_rs_runtime::DecodeError::UnexpectedEof); }");
-                    self.push_line(&format!("let mut sub_msg: {msg_type} = Default::default();"));
-                    self.push_line(
-                        "let sub_buf = &buf[header..end];",
-                    );
+                    self.push_line(&format!(
+                        "let mut sub_msg: {msg_type} = Default::default();"
+                    ));
+                    self.push_line("let sub_buf = &buf[header..end];");
                     self.push_line("let mut pos = 0;");
                     self.push_line("while pos < sub_buf.len() {");
                     self.indent += 1;
-                    self.push_line("let (tag, tc) = protoc_rs_runtime::wire::decode_tag(&sub_buf[pos..])?;");
+                    self.push_line(
+                        "let (tag, tc) = protoc_rs_runtime::wire::decode_tag(&sub_buf[pos..])?;",
+                    );
                     self.push_line("pos += tc;");
                     self.push_line("pos += sub_msg.merge_field(tag.field_number, tag.wire_type, &sub_buf[pos..], options)?;");
                     self.indent -= 1;
@@ -1809,19 +1878,29 @@ impl RuntimeGen {
             self.push_line("let (len, header) = protoc_rs_runtime::wire::decode_varint(buf)?;");
             self.push_line("let end = header + len as usize;");
             self.push_line("if end > buf.len() { return ::core::result::Result::Err(protoc_rs_runtime::DecodeError::UnexpectedEof); }");
-            self.push_line(&format!("let mut key: {} = Default::default();", rust_scalar_type(key_type)));
+            self.push_line(&format!(
+                "let mut key: {} = Default::default();",
+                rust_scalar_type(key_type)
+            ));
             if val_type == FieldType::Message {
                 let val_msg_type = self.rust_field_type_runtime(val_field);
-                self.push_line(&format!("let mut val: {val_msg_type} = Default::default();"));
+                self.push_line(&format!(
+                    "let mut val: {val_msg_type} = Default::default();"
+                ));
             } else if val_type == FieldType::Enum {
                 self.push_line("let mut val: i32 = 0;");
             } else {
-                self.push_line(&format!("let mut val: {} = Default::default();", rust_scalar_type(val_type)));
+                self.push_line(&format!(
+                    "let mut val: {} = Default::default();",
+                    rust_scalar_type(val_type)
+                ));
             }
             self.push_line("let mut pos = header;");
             self.push_line("while pos < end {");
             self.indent += 1;
-            self.push_line("let (entry_tag, tc) = protoc_rs_runtime::wire::decode_tag(&buf[pos..])?;");
+            self.push_line(
+                "let (entry_tag, tc) = protoc_rs_runtime::wire::decode_tag(&buf[pos..])?;",
+            );
             self.push_line("pos += tc;");
             self.push_line("match entry_tag.field_number {");
             self.indent += 1;
@@ -1841,7 +1920,9 @@ impl RuntimeGen {
                 self.push_line("let mut sub_pos = pos + sub_header;");
                 self.push_line("while sub_pos < sub_end {");
                 self.indent += 1;
-                self.push_line("let (st, stc) = protoc_rs_runtime::wire::decode_tag(&buf[sub_pos..])?;");
+                self.push_line(
+                    "let (st, stc) = protoc_rs_runtime::wire::decode_tag(&buf[sub_pos..])?;",
+                );
                 self.push_line("sub_pos += stc;");
                 self.push_line("sub_pos += val.merge_field(st.field_number, st.wire_type, &buf[sub_pos..], options)?;");
                 self.indent -= 1;
@@ -1864,7 +1945,9 @@ impl RuntimeGen {
             self.indent -= 1;
             self.push_line("}");
             if val_type == FieldType::Enum {
-                self.push_line(&format!("self.{rust_name}.insert(key, protoc_rs_runtime::EnumValue::from(val));"));
+                self.push_line(&format!(
+                    "self.{rust_name}.insert(key, protoc_rs_runtime::EnumValue::from(val));"
+                ));
             } else {
                 self.push_line(&format!("self.{rust_name}.insert(key, val);"));
             }
@@ -1885,7 +1968,9 @@ impl RuntimeGen {
             self.push_line("if end > buf.len() { return ::core::result::Result::Err(protoc_rs_runtime::DecodeError::UnexpectedEof); }");
 
             if label == FieldLabel::Repeated {
-                self.push_line(&format!("let mut sub_msg: {msg_type} = Default::default();"));
+                self.push_line(&format!(
+                    "let mut sub_msg: {msg_type} = Default::default();"
+                ));
             } else {
                 self.push_line(&format!(
                     "let sub_msg = self.{rust_name}.get_or_insert_default();"
@@ -1895,7 +1980,9 @@ impl RuntimeGen {
             self.push_line("let mut pos = 0;");
             self.push_line("while pos < sub_buf.len() {");
             self.indent += 1;
-            self.push_line("let (tag, tc) = protoc_rs_runtime::wire::decode_tag(&sub_buf[pos..])?;");
+            self.push_line(
+                "let (tag, tc) = protoc_rs_runtime::wire::decode_tag(&sub_buf[pos..])?;",
+            );
             self.push_line("pos += tc;");
             self.push_line("pos += sub_msg.merge_field(tag.field_number, tag.wire_type, &sub_buf[pos..], options)?;");
             self.indent -= 1;
@@ -1940,10 +2027,14 @@ impl RuntimeGen {
                     if field_type == FieldType::Enum {
                         self.push_line(&format!("self.{rust_name} = ::core::option::Option::Some(protoc_rs_runtime::EnumValue::from(val as i32));"));
                     } else {
-                        self.push_line(&format!("self.{rust_name} = ::core::option::Option::Some(val);"));
+                        self.push_line(&format!(
+                            "self.{rust_name} = ::core::option::Option::Some(val);"
+                        ));
                     }
                 } else if field_type == FieldType::Enum {
-                    self.push_line(&format!("self.{rust_name} = protoc_rs_runtime::EnumValue::from(val as i32);"));
+                    self.push_line(&format!(
+                        "self.{rust_name} = protoc_rs_runtime::EnumValue::from(val as i32);"
+                    ));
                 } else {
                     self.push_line(&format!("self.{rust_name} = val;"));
                 }
@@ -2028,7 +2119,9 @@ impl RuntimeGen {
         self.push_line("}");
 
         // Enumeration trait impl
-        self.push_line(&format!("impl protoc_rs_runtime::Enumeration for {rust_name} {{"));
+        self.push_line(&format!(
+            "impl protoc_rs_runtime::Enumeration for {rust_name} {{"
+        ));
         self.indent += 1;
 
         // from_i32
@@ -2037,7 +2130,9 @@ impl RuntimeGen {
         self.push_line("match value {");
         self.indent += 1;
         for (_, number, rust_variant) in &variants {
-            self.push_line(&format!("{number} => ::core::option::Option::Some(Self::{rust_variant}),"));
+            self.push_line(&format!(
+                "{number} => ::core::option::Option::Some(Self::{rust_variant}),"
+            ));
         }
         self.push_line("_ => ::core::option::Option::None,");
         self.indent -= 1;
@@ -2084,7 +2179,12 @@ impl RuntimeGen {
             .iter()
             .find(|(_, n, _)| *n == 0)
             .map(|(_, _, rv)| rv.as_str())
-            .unwrap_or_else(|| variants.first().map(|(_, _, rv)| rv.as_str()).unwrap_or("Unknown"));
+            .unwrap_or_else(|| {
+                variants
+                    .first()
+                    .map(|(_, _, rv)| rv.as_str())
+                    .unwrap_or("Unknown")
+            });
         self.push_line("fn default_value() -> Self {");
         self.indent += 1;
         self.push_line(&format!("Self::{default_variant}"));
@@ -2107,7 +2207,9 @@ impl RuntimeGen {
         let rust_name = to_upper_camel(oneof_name);
 
         if self.emit_serde {
-            self.push_line("#[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]");
+            self.push_line(
+                "#[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]",
+            );
         } else {
             self.push_line("#[derive(Clone, PartialEq, Debug)]");
         }
@@ -2220,9 +2322,15 @@ fn wire_type_for_field_type(ft: FieldType) -> &'static str {
 
 fn wire_type_enum_for_field_type(ft: FieldType) -> &'static str {
     match ft {
-        FieldType::Double | FieldType::Fixed64 | FieldType::Sfixed64 => "protoc_rs_runtime::WireType::Fixed64",
-        FieldType::Float | FieldType::Fixed32 | FieldType::Sfixed32 => "protoc_rs_runtime::WireType::Fixed32",
-        FieldType::String | FieldType::Bytes | FieldType::Message => "protoc_rs_runtime::WireType::LengthDelimited",
+        FieldType::Double | FieldType::Fixed64 | FieldType::Sfixed64 => {
+            "protoc_rs_runtime::WireType::Fixed64"
+        }
+        FieldType::Float | FieldType::Fixed32 | FieldType::Sfixed32 => {
+            "protoc_rs_runtime::WireType::Fixed32"
+        }
+        FieldType::String | FieldType::Bytes | FieldType::Message => {
+            "protoc_rs_runtime::WireType::LengthDelimited"
+        }
         FieldType::Group => "protoc_rs_runtime::WireType::StartGroup",
         _ => "protoc_rs_runtime::WireType::Varint",
     }
@@ -2254,8 +2362,12 @@ fn scalar_compute_size_expr(var: &str, ft: FieldType) -> String {
 /// `var` is a Rust expression that evaluates to a reference (e.g., "v", "&self.field").
 fn scalar_write_expr(var: &str, ft: FieldType) -> String {
     match ft {
-        FieldType::Int32 | FieldType::Uint32 | FieldType::Int64 | FieldType::Uint64
-        | FieldType::Bool | FieldType::Enum => {
+        FieldType::Int32
+        | FieldType::Uint32
+        | FieldType::Int64
+        | FieldType::Uint64
+        | FieldType::Bool
+        | FieldType::Enum => {
             format!("protoc_rs_runtime::wire::encode_varint((*{var}) as u64, buf);")
         }
         FieldType::Sint32 => {
@@ -2270,8 +2382,12 @@ fn scalar_write_expr(var: &str, ft: FieldType) -> String {
         FieldType::Fixed64 | FieldType::Sfixed64 => {
             format!("protoc_rs_runtime::wire::encode_fixed64((*{var}) as u64, buf);")
         }
-        FieldType::Float => format!("protoc_rs_runtime::wire::encode_fixed32(({var}).to_bits(), buf);"),
-        FieldType::Double => format!("protoc_rs_runtime::wire::encode_fixed64(({var}).to_bits(), buf);"),
+        FieldType::Float => {
+            format!("protoc_rs_runtime::wire::encode_fixed32(({var}).to_bits(), buf);")
+        }
+        FieldType::Double => {
+            format!("protoc_rs_runtime::wire::encode_fixed64(({var}).to_bits(), buf);")
+        }
         FieldType::String => {
             format!(
                 "protoc_rs_runtime::wire::encode_varint(({var}).len() as u64, buf); buf.extend_from_slice(({var}).as_bytes());"
@@ -2549,7 +2665,7 @@ fn view_to_owned_conv(var: &str, ft: FieldType) -> String {
         FieldType::Bytes => format!("{var}.to_vec()"),
         FieldType::Message => format!("{var}.into()"),
         FieldType::Enum => var.to_string(), // EnumValue<E> is Copy
-        _ => var.to_string(), // scalars are Copy
+        _ => var.to_string(),               // scalars are Copy
     }
 }
 
@@ -2720,7 +2836,6 @@ fn fqn_to_rust_path(fqn: &str, current_scope: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use protoc_rs_schema::*;
 
     fn gen_source(fds: &FileDescriptorSet) -> String {
         let result = generate_rust_runtime(fds).unwrap();
@@ -2874,13 +2989,11 @@ mod tests {
                 }],
                 enum_type: vec![EnumDescriptorProto {
                     name: Some("Status".to_string()),
-                    value: vec![
-                        EnumValueDescriptorProto {
-                            name: Some("STATUS_UNKNOWN".to_string()),
-                            number: Some(0),
-                            ..Default::default()
-                        },
-                    ],
+                    value: vec![EnumValueDescriptorProto {
+                        name: Some("STATUS_UNKNOWN".to_string()),
+                        number: Some(0),
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 }],
                 ..Default::default()
@@ -3088,7 +3201,9 @@ mod tests {
         assert!(source.contains("pub id: i32,")); // scalars stay owned
 
         // Implements MessageView
-        assert!(source.contains("impl<'a> protoc_rs_runtime::view::MessageView<'a> for PersonView<'a>"));
+        assert!(
+            source.contains("impl<'a> protoc_rs_runtime::view::MessageView<'a> for PersonView<'a>")
+        );
 
         // PhantomData for unused lifetime
         assert!(source.contains("PhantomData"));

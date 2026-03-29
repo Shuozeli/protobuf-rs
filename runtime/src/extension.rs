@@ -12,6 +12,9 @@ use crate::wire::{self, WireType};
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
 
+/// Function type for decoding a scalar value from wire bytes.
+pub type DecodeFn<T> = fn(&[u8]) -> Result<(T, usize), DecodeError>;
+
 /// Descriptor for a scalar extension field.
 pub struct ExtensionDescriptor<T> {
     /// The field number of the extension.
@@ -19,7 +22,7 @@ pub struct ExtensionDescriptor<T> {
     /// The wire type used for encoding.
     pub wire_type: WireType,
     /// Function to decode a value from raw wire bytes.
-    pub decode_fn: fn(&[u8]) -> Result<(T, usize), DecodeError>,
+    pub decode_fn: DecodeFn<T>,
     /// The default value when the extension is not set.
     pub default_value: T,
 }
@@ -75,9 +78,7 @@ impl<T: Clone> ExtensionDescriptor<T> {
 
     /// Check if the extension is present in the unknown fields.
     pub fn is_set(&self, unknown_fields: &UnknownFields) -> bool {
-        unknown_fields
-            .iter()
-            .any(|f| f.number == self.field_number)
+        unknown_fields.iter().any(|f| f.number == self.field_number)
     }
 }
 
@@ -109,9 +110,7 @@ impl<T: Clone> MessageExtensionDescriptor<T> {
 
     /// Check if the extension is present.
     pub fn is_set(&self, unknown_fields: &UnknownFields) -> bool {
-        unknown_fields
-            .iter()
-            .any(|f| f.number == self.field_number)
+        unknown_fields.iter().any(|f| f.number == self.field_number)
     }
 }
 

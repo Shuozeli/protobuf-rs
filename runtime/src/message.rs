@@ -125,7 +125,8 @@ pub fn decode_with_options<M: Message>(
         let (tag, tag_consumed) = wire::decode_tag(&buf[pos..])?;
         pos += tag_consumed;
 
-        let field_consumed = msg.merge_field(tag.field_number, tag.wire_type, &buf[pos..], options)?;
+        let field_consumed =
+            msg.merge_field(tag.field_number, tag.wire_type, &buf[pos..], options)?;
         pos += field_consumed;
     }
 
@@ -136,11 +137,7 @@ pub fn decode_with_options<M: Message>(
 ///
 /// Uses the message's cached size to write the length prefix without
 /// recomputing. `compute_size()` must have been called first.
-pub fn write_message_field<M: Message>(
-    field_number: u32,
-    msg: &M,
-    buf: &mut Vec<u8>,
-) {
+pub fn write_message_field<M: Message>(field_number: u32, msg: &M, buf: &mut Vec<u8>) {
     wire::encode_tag(field_number, WireType::LengthDelimited, buf);
     wire::encode_varint(msg.cached_size().get() as u64, buf);
     msg.write_to(buf);
@@ -148,7 +145,8 @@ pub fn write_message_field<M: Message>(
 
 /// Compute the encoded size of a length-delimited (nested message) field.
 pub fn message_field_size<M: Message>(field_number: u32, msg: &M) -> u32 {
-    let tag_size = wire::varint_len(((field_number as u64) << 3) | WireType::LengthDelimited as u64);
+    let tag_size =
+        wire::varint_len(((field_number as u64) << 3) | WireType::LengthDelimited as u64);
     let msg_size = msg.compute_size();
     let len_prefix_size = wire::varint_len(msg_size as u64);
     (tag_size + len_prefix_size + msg_size as usize) as u32
@@ -245,7 +243,10 @@ mod tests {
 
     #[test]
     fn encode_decode_round_trip() {
-        let msg = SimpleMsg { value: 42, ..Default::default() };
+        let msg = SimpleMsg {
+            value: 42,
+            ..Default::default()
+        };
         let bytes = encode(&msg);
         let decoded: SimpleMsg = decode(&bytes).unwrap();
         assert_eq!(decoded.value, 42);
@@ -289,11 +290,15 @@ mod tests {
 
     #[test]
     fn clear_resets_all_fields() {
-        let mut msg = SimpleMsg { value: 42, ..Default::default() };
-        msg.unknown_fields_mut().push(crate::unknown_fields::UnknownField {
-            number: 99,
-            data: crate::unknown_fields::UnknownFieldData::Varint(1),
-        });
+        let mut msg = SimpleMsg {
+            value: 42,
+            ..Default::default()
+        };
+        msg.unknown_fields_mut()
+            .push(crate::unknown_fields::UnknownField {
+                number: 99,
+                data: crate::unknown_fields::UnknownFieldData::Varint(1),
+            });
         msg.clear();
         assert_eq!(msg.value, 0);
         assert!(msg.unknown_fields().is_empty());

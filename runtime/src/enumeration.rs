@@ -161,7 +161,6 @@ impl<'de, E: Enumeration> serde::Deserialize<'de> for EnumValue<E> {
             fn visit_u64<Err: serde::de::Error>(self, v: u64) -> Result<Self::Value, Err> {
                 Ok(EnumValue::from(v as i32))
             }
-
         }
 
         deserializer.deserialize_any(EnumValueVisitor(core::marker::PhantomData))

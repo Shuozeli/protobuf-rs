@@ -11,10 +11,7 @@ use crate::rust_gen::fqn_to_rust_path;
 /// Generate runtime-backed gRPC service code for all services in a file.
 ///
 /// Returns Rust source code with server traits and client stubs.
-pub fn generate_runtime_services(
-    file: &FileDescriptorProto,
-    package: &str,
-) -> String {
+pub fn generate_runtime_services(file: &FileDescriptorProto, package: &str) -> String {
     let mut buf = String::new();
 
     if file.service.is_empty() {
@@ -38,14 +35,12 @@ fn gen_service_trait(svc: &ServiceDescriptorProto, package: &str) -> String {
     let mut buf = String::new();
     buf.push_str(&format!("/// Server trait for the `{name}` service.\n"));
     buf.push_str("#[async_trait::async_trait]\n");
-    buf.push_str(&format!("pub trait {trait_name}: Send + Sync + 'static {{\n"));
+    buf.push_str(&format!(
+        "pub trait {trait_name}: Send + Sync + 'static {{\n"
+    ));
 
     for method in &svc.method {
-        let method_name = method
-            .name
-            .as_deref()
-            .unwrap_or("unknown")
-            .to_snake_case();
+        let method_name = method.name.as_deref().unwrap_or("unknown").to_snake_case();
         let input = resolve_type(method.input_type.as_deref().unwrap_or(""), package);
         let output = resolve_type(method.output_type.as_deref().unwrap_or(""), package);
 
@@ -100,11 +95,7 @@ fn gen_client_stub(svc: &ServiceDescriptorProto, package: &str) -> String {
     buf.push_str("    }\n");
 
     for method in &svc.method {
-        let method_name = method
-            .name
-            .as_deref()
-            .unwrap_or("unknown")
-            .to_snake_case();
+        let method_name = method.name.as_deref().unwrap_or("unknown").to_snake_case();
         let input = resolve_type(method.input_type.as_deref().unwrap_or(""), package);
         let output = resolve_type(method.output_type.as_deref().unwrap_or(""), package);
         let _proto_method_path = format!(

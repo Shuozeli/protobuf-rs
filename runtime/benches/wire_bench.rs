@@ -1,9 +1,9 @@
 //! Benchmarks for wire format encoding/decoding and message round-trips.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BatchSize};
-use protoc_rs_runtime::*;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use protoc_rs_runtime::unknown_fields::{self, UnknownFields};
 use protoc_rs_runtime::wire::{self, WireType};
+use protoc_rs_runtime::*;
 
 // ---------------------------------------------------------------------------
 // A benchmark message with multiple field types
@@ -86,9 +86,12 @@ impl Message for BenchMsg {
             2 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
                 self.name = std::str::from_utf8(&buf[h..end])
-                    .map_err(|_| DecodeError::InvalidUtf8)?.to_string();
+                    .map_err(|_| DecodeError::InvalidUtf8)?
+                    .to_string();
                 Ok(end)
             }
             3 => {
@@ -99,31 +102,53 @@ impl Message for BenchMsg {
             4 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
-                self.tags.push(std::str::from_utf8(&buf[h..end])
-                    .map_err(|_| DecodeError::InvalidUtf8)?.to_string());
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
+                self.tags.push(
+                    std::str::from_utf8(&buf[h..end])
+                        .map_err(|_| DecodeError::InvalidUtf8)?
+                        .to_string(),
+                );
                 Ok(end)
             }
             5 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
                 self.data = buf[h..end].to_vec();
                 Ok(end)
             }
             _ => {
-                let (f, c) = unknown_fields::decode_unknown_field(buf, field_number, wire_type, options.recursion_limit)?;
+                let (f, c) = unknown_fields::decode_unknown_field(
+                    buf,
+                    field_number,
+                    wire_type,
+                    options.recursion_limit,
+                )?;
                 self._unknown_fields.push(f);
                 Ok(c)
             }
         }
     }
 
-    fn clear(&mut self) { *self = Self::default(); }
-    fn cached_size(&self) -> &CachedSize { &self._cached_size }
-    fn unknown_fields(&self) -> &UnknownFields { &self._unknown_fields }
-    fn unknown_fields_mut(&mut self) -> &mut UnknownFields { &mut self._unknown_fields }
-    fn full_name() -> &'static str { "bench.BenchMsg" }
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
+    fn cached_size(&self) -> &CachedSize {
+        &self._cached_size
+    }
+    fn unknown_fields(&self) -> &UnknownFields {
+        &self._unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut UnknownFields {
+        &mut self._unknown_fields
+    }
+    fn full_name() -> &'static str {
+        "bench.BenchMsg"
+    }
 }
 
 // A corresponding view type
@@ -154,9 +179,11 @@ impl<'a> protoc_rs_runtime::view::MessageView<'a> for BenchMsgView<'a> {
             2 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
-                self.name = std::str::from_utf8(&buf[h..end])
-                    .map_err(|_| DecodeError::InvalidUtf8)?;
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
+                self.name =
+                    std::str::from_utf8(&buf[h..end]).map_err(|_| DecodeError::InvalidUtf8)?;
                 Ok(end)
             }
             3 => {
@@ -167,15 +194,19 @@ impl<'a> protoc_rs_runtime::view::MessageView<'a> for BenchMsgView<'a> {
             4 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
-                self.tags.push(std::str::from_utf8(&buf[h..end])
-                    .map_err(|_| DecodeError::InvalidUtf8)?);
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
+                self.tags
+                    .push(std::str::from_utf8(&buf[h..end]).map_err(|_| DecodeError::InvalidUtf8)?);
                 Ok(end)
             }
             5 => {
                 let (len, h) = wire::decode_varint(buf)?;
                 let end = h + len as usize;
-                if end > buf.len() { return Err(DecodeError::UnexpectedEof); }
+                if end > buf.len() {
+                    return Err(DecodeError::UnexpectedEof);
+                }
                 self.data = &buf[h..end];
                 Ok(end)
             }

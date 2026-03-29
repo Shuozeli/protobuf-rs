@@ -226,13 +226,13 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
             emit_serde: args.runtime_out_json,
         };
         let files =
-            protoc_rs_codegen::generate_rust_runtime_with_options(&fds, &options).map_err(
-                |e| AnalyzeError {
+            protoc_rs_codegen::generate_rust_runtime_with_options(&fds, &options).map_err(|e| {
+                AnalyzeError {
                     message: format!("runtime codegen failed: {}", e),
                     file: None,
                     span: None,
-                },
-            )?;
+                }
+            })?;
         write_codegen_files(out_dir, &files)?;
         eprintln!(
             "Generated {} Rust file(s) in {} (runtime backend{})",

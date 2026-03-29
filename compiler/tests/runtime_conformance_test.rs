@@ -22,12 +22,10 @@ fn conformance_check(proto_source: &str, test_name: &str) {
         return; // No output (e.g., file has only imports)
     }
 
-    let tmp = tempfile::tempdir()
-        .unwrap_or_else(|e| panic!("{test_name}: tempdir failed: {e}"));
+    let tmp = tempfile::tempdir().unwrap_or_else(|e| panic!("{test_name}: tempdir failed: {e}"));
     let project_dir = tmp.path().join(test_name);
     let src_dir = project_dir.join("src");
-    std::fs::create_dir_all(&src_dir)
-        .unwrap_or_else(|e| panic!("{test_name}: mkdir failed: {e}"));
+    std::fs::create_dir_all(&src_dir).unwrap_or_else(|e| panic!("{test_name}: mkdir failed: {e}"));
 
     let runtime_path = workspace_root().join("runtime");
     let cargo_toml = format!(
@@ -115,10 +113,7 @@ fn conformance_upstream_nested() {
 #[test]
 fn conformance_upstream_parent() {
     conformance_check(
-        &std::fs::read_to_string(
-            workspace_root().join("testdata/upstream/parent.proto"),
-        )
-        .unwrap(),
+        &std::fs::read_to_string(workspace_root().join("testdata/upstream/parent.proto")).unwrap(),
         "upstream_parent",
     );
 }

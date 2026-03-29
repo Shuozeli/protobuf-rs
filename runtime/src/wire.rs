@@ -77,7 +77,7 @@ pub fn varint_len(value: u64) -> usize {
         return 1;
     }
     let bits = 64 - value.leading_zeros() as usize;
-    (bits + 6) / 7
+    bits.div_ceil(7)
 }
 
 /// Decode a varint from a byte slice. Returns (value, bytes_consumed).
@@ -142,7 +142,13 @@ pub fn decode_tag(buf: &[u8]) -> Result<(Tag, usize), DecodeError> {
     let wire_type =
         WireType::from_u32(wire_type_val).ok_or(DecodeError::UnknownWireType(wire_type_val))?;
 
-    Ok((Tag { field_number, wire_type }, consumed))
+    Ok((
+        Tag {
+            field_number,
+            wire_type,
+        },
+        consumed,
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +175,9 @@ pub fn decode_fixed64(buf: &[u8]) -> Result<(u64, usize), DecodeError> {
     if buf.len() < 8 {
         return Err(DecodeError::UnexpectedEof);
     }
-    let value = u64::from_le_bytes([buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]]);
+    let value = u64::from_le_bytes([
+        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+    ]);
     Ok((value, 8))
 }
 
@@ -245,8 +253,7 @@ pub fn skip_field(
                 if tag.wire_type == WireType::EndGroup {
                     return Ok(pos);
                 }
-                let field_consumed =
-                    skip_field(&buf[pos..], tag.wire_type, recursion_limit - 1)?;
+                let field_consumed = skip_field(&buf[pos..], tag.wire_type, recursion_limit - 1)?;
                 pos += field_consumed;
             }
         }
@@ -354,13 +361,20 @@ pub fn decode_packed_fixed32(buf: &[u8]) -> Result<(Vec<u32>, usize), DecodeErro
         return Err(DecodeError::UnexpectedEof);
     }
     let content = &buf[header..end];
-    if content.len() % 4 != 0 {
-        return Err(DecodeError::Custom("packed fixed32 length not multiple of 4".into()));
+    if !content.len().is_multiple_of(4) {
+        return Err(DecodeError::Custom(
+            "packed fixed32 length not multiple of 4".into(),
+        ));
     }
     let mut values = Vec::with_capacity(content.len() / 4);
     let mut pos = 0;
     while pos < content.len() {
-        let v = u32::from_le_bytes([content[pos], content[pos + 1], content[pos + 2], content[pos + 3]]);
+        let v = u32::from_le_bytes([
+            content[pos],
+            content[pos + 1],
+            content[pos + 2],
+            content[pos + 3],
+        ]);
         values.push(v);
         pos += 4;
     }
@@ -375,15 +389,23 @@ pub fn decode_packed_fixed64(buf: &[u8]) -> Result<(Vec<u64>, usize), DecodeErro
         return Err(DecodeError::UnexpectedEof);
     }
     let content = &buf[header..end];
-    if content.len() % 8 != 0 {
-        return Err(DecodeError::Custom("packed fixed64 length not multiple of 8".into()));
+    if !content.len().is_multiple_of(8) {
+        return Err(DecodeError::Custom(
+            "packed fixed64 length not multiple of 8".into(),
+        ));
     }
     let mut values = Vec::with_capacity(content.len() / 8);
     let mut pos = 0;
     while pos < content.len() {
         let v = u64::from_le_bytes([
-            content[pos], content[pos + 1], content[pos + 2], content[pos + 3],
-            content[pos + 4], content[pos + 5], content[pos + 6], content[pos + 7],
+            content[pos],
+            content[pos + 1],
+            content[pos + 2],
+            content[pos + 3],
+            content[pos + 4],
+            content[pos + 5],
+            content[pos + 6],
+            content[pos + 7],
         ]);
         values.push(v);
         pos += 8;
@@ -424,12 +446,18 @@ mod tests {
     fn varint_too_long() {
         // 11 bytes with continuation bits set
         let buf = [0x80; 11];
-        assert!(matches!(decode_varint(&buf), Err(DecodeError::VarintTooLong)));
+        assert!(matches!(
+            decode_varint(&buf),
+            Err(DecodeError::VarintTooLong)
+        ));
     }
 
     #[test]
     fn varint_empty_buffer() {
-        assert!(matches!(decode_varint(&[]), Err(DecodeError::UnexpectedEof)));
+        assert!(matches!(
+            decode_varint(&[]),
+            Err(DecodeError::UnexpectedEof)
+        ));
     }
 
     // -- Tag round-trip ------------------------------------------------------
@@ -458,7 +486,10 @@ mod tests {
     fn tag_field_number_zero_rejected() {
         // field 0, wire type 0
         let buf = [0x00];
-        assert!(matches!(decode_tag(&buf), Err(DecodeError::InvalidFieldNumber)));
+        assert!(matches!(
+            decode_tag(&buf),
+            Err(DecodeError::InvalidFieldNumber)
+        ));
     }
 
     // -- Fixed width ---------------------------------------------------------

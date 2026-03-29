@@ -246,7 +246,13 @@ pub fn decode_unknown_field(
         }
     };
 
-    Ok((UnknownField { number: field_number, data }, consumed))
+    Ok((
+        UnknownField {
+            number: field_number,
+            data,
+        },
+        consumed,
+    ))
 }
 
 #[cfg(test)]
@@ -345,11 +351,26 @@ mod tests {
     #[test]
     fn encoded_len_matches_write_to() {
         let cases = vec![
-            UnknownField { number: 1, data: UnknownFieldData::Varint(0) },
-            UnknownField { number: 1, data: UnknownFieldData::Varint(u64::MAX) },
-            UnknownField { number: 15, data: UnknownFieldData::Fixed64(0) },
-            UnknownField { number: 16, data: UnknownFieldData::Fixed32(0) },
-            UnknownField { number: 100, data: UnknownFieldData::LengthDelimited(vec![0; 128]) },
+            UnknownField {
+                number: 1,
+                data: UnknownFieldData::Varint(0),
+            },
+            UnknownField {
+                number: 1,
+                data: UnknownFieldData::Varint(u64::MAX),
+            },
+            UnknownField {
+                number: 15,
+                data: UnknownFieldData::Fixed64(0),
+            },
+            UnknownField {
+                number: 16,
+                data: UnknownFieldData::Fixed32(0),
+            },
+            UnknownField {
+                number: 100,
+                data: UnknownFieldData::LengthDelimited(vec![0; 128]),
+            },
         ];
         for field in &cases {
             let mut buf = Vec::new();
@@ -369,9 +390,18 @@ mod tests {
     #[test]
     fn retain_filters_fields() {
         let mut uf = UnknownFields::new();
-        uf.push(UnknownField { number: 1, data: UnknownFieldData::Varint(1) });
-        uf.push(UnknownField { number: 2, data: UnknownFieldData::Varint(2) });
-        uf.push(UnknownField { number: 1, data: UnknownFieldData::Varint(3) });
+        uf.push(UnknownField {
+            number: 1,
+            data: UnknownFieldData::Varint(1),
+        });
+        uf.push(UnknownField {
+            number: 2,
+            data: UnknownFieldData::Varint(2),
+        });
+        uf.push(UnknownField {
+            number: 1,
+            data: UnknownFieldData::Varint(3),
+        });
         uf.retain(|f| f.number != 1);
         assert_eq!(uf.len(), 1);
         assert_eq!(uf.fields[0].number, 2);
