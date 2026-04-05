@@ -2,9 +2,6 @@
 name = "protoc-rs-build"
 version = "0.1.0"
 edition = "2021"
-description = "Build-time code generation for protoc-rs runtime backend"
 
-[dependencies]
-protoc-rs-analyzer = { path = "../analyzer" }
-protoc-rs-codegen = { path = "../codegen" }
-protoc-rs-compiler = { path = "../compiler" }
+[lib]
+path = "lib.rs"

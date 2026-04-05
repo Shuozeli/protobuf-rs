@@ -1,0 +1,9 @@
+modules:
+  journal: true
+  artifact: true
+  task: true
+  state: true
+  idea: true
+  debug: true
+require_project: false
+default_project: default
