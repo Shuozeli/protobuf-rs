@@ -350,19 +350,22 @@ impl RustGen {
         self.w.line("match self {");
         self.w.indent();
         for (val_name, _, rust_variant) in &variants {
-            self.w.line(&format!("Self::{rust_variant} => \"{val_name}\","));
+            self.w
+                .line(&format!("Self::{rust_variant} => \"{val_name}\","));
         }
         self.w.dedent();
         self.w.line("}");
         self.w.dedent();
         self.w.line("}");
 
-        self.w.line("pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {");
+        self.w
+            .line("pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {");
         self.w.indent();
         self.w.line("match value {");
         self.w.indent();
         for (val_name, _, rust_variant) in &variants {
-            self.w.line(&format!("\"{val_name}\" => Some(Self::{rust_variant}),"));
+            self.w
+                .line(&format!("\"{val_name}\" => Some(Self::{rust_variant}),"));
         }
         self.w.line("_ => None,");
         self.w.dedent();
@@ -393,7 +396,8 @@ impl RustGen {
             let tag = field.number.unwrap_or(0);
             let type_tag = prost_field_tag(field, &self.current_fqn_prefix());
 
-            self.w.line(&format!("#[prost({type_tag}, tag = \"{tag}\")]"));
+            self.w
+                .line(&format!("#[prost({type_tag}, tag = \"{tag}\")]"));
             let variant_name = to_upper_camel(field_name);
             let base_type = rust_field_type(field, &self.current_fqn_prefix());
 
