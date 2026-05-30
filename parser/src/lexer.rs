@@ -337,8 +337,26 @@ impl<'a> Lexer<'a> {
                         span: Span::new(start, self.current_position()),
                     });
                 }
+                Some(b) if b < 0x80 => {
+                    // ASCII fast path.
+                    self.advance();
+                    value.push(b as char);
+                }
                 Some(_) => {
-                    value.push(self.advance().unwrap() as char);
+                    // Multibyte UTF-8. `source` is a `&str` (guaranteed valid
+                    // UTF-8) and the cursor sits on a char boundary here, so
+                    // decode the whole char and advance past all of its bytes.
+                    // The old `byte as char` cast pushed each continuation byte
+                    // as its own char, double-encoding e.g. `é` (C3 A9) into
+                    // `Ã©`.
+                    let ch = self.source[self.pos..]
+                        .chars()
+                        .next()
+                        .expect("non-ASCII byte must begin a valid UTF-8 char in source");
+                    for _ in 0..ch.len_utf8() {
+                        self.advance();
+                    }
+                    value.push(ch);
                 }
             }
         }
@@ -771,6 +789,20 @@ mod tests {
         assert_eq!(tokens[0].text, "hello world");
         assert_eq!(tokens[1].text, "single");
         assert_eq!(tokens[2].text, "esc\n\t");
+    }
+
+    #[test]
+    fn test_strings_preserve_multibyte_utf8() {
+        // Arrange: literals with 2-, 3-, and 4-byte UTF-8 chars. The old lexer
+        // pushed each byte as its own `char`, double-encoding (e.g. `é` -> `Ã©`).
+        let tokens = lex(r#""café" "日本語" "emoji 😀 end""#);
+
+        // Act / Assert: each char is preserved intact, not split per byte.
+        assert_eq!(tokens.len(), 3);
+        assert!(tokens.iter().all(|t| t.kind == TokenKind::StringLiteral));
+        assert_eq!(tokens[0].text, "café");
+        assert_eq!(tokens[1].text, "日本語");
+        assert_eq!(tokens[2].text, "emoji 😀 end");
     }
 
     #[test]
