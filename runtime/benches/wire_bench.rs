@@ -219,7 +219,7 @@ fn make_bench_msg() -> BenchMsg {
     BenchMsg {
         id: 12345678,
         name: "benchmark test message with a reasonably long name".to_string(),
-        score: 3.14159265358979,
+        score: std::f64::consts::PI,
         tags: vec![
             "tag1".to_string(),
             "tag2".to_string(),

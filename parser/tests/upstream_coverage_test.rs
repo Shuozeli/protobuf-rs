@@ -120,8 +120,7 @@ fn upstream_coverage_report() {
     eprintln!("  Parse OK:                {:>4}", pass);
     eprintln!("  Parse FAILED:            {:>4}", fail.len());
     eprintln!();
-    if total > 0 {
-        let pct = pass * 100 / total;
+    if let Some(pct) = (pass * 100).checked_div(total) {
         eprintln!("  Pass rate: {}/{} ({}%)", pass, total, pct);
     }
 
@@ -144,8 +143,7 @@ fn upstream_coverage_report() {
 
     // The test passes as long as we report. We track regressions by checking
     // the pass rate doesn't go down.
-    if total > 0 {
-        let pct = pass * 100 / total;
+    if let Some(pct) = (pass * 100).checked_div(total) {
         assert!(
             pct >= 80,
             "pass rate {}% is below 80% threshold ({}/{})",

@@ -37,36 +37,36 @@ impl<T: Clone> ExtensionDescriptor<T> {
         for field in unknown_fields.iter() {
             if field.number == self.field_number {
                 match &field.data {
-                    crate::unknown_fields::UnknownFieldData::Varint(v) => {
-                        if self.wire_type == WireType::Varint {
-                            let mut buf = Vec::new();
-                            wire::encode_varint(*v, &mut buf);
-                            if let Ok((val, _)) = (self.decode_fn)(&buf) {
-                                result = val;
-                            }
+                    crate::unknown_fields::UnknownFieldData::Varint(v)
+                        if self.wire_type == WireType::Varint =>
+                    {
+                        let mut buf = Vec::new();
+                        wire::encode_varint(*v, &mut buf);
+                        if let Ok((val, _)) = (self.decode_fn)(&buf) {
+                            result = val;
                         }
                     }
-                    crate::unknown_fields::UnknownFieldData::Fixed32(v) => {
-                        if self.wire_type == WireType::Fixed32 {
-                            let buf = v.to_le_bytes();
-                            if let Ok((val, _)) = (self.decode_fn)(&buf) {
-                                result = val;
-                            }
+                    crate::unknown_fields::UnknownFieldData::Fixed32(v)
+                        if self.wire_type == WireType::Fixed32 =>
+                    {
+                        let buf = v.to_le_bytes();
+                        if let Ok((val, _)) = (self.decode_fn)(&buf) {
+                            result = val;
                         }
                     }
-                    crate::unknown_fields::UnknownFieldData::Fixed64(v) => {
-                        if self.wire_type == WireType::Fixed64 {
-                            let buf = v.to_le_bytes();
-                            if let Ok((val, _)) = (self.decode_fn)(&buf) {
-                                result = val;
-                            }
+                    crate::unknown_fields::UnknownFieldData::Fixed64(v)
+                        if self.wire_type == WireType::Fixed64 =>
+                    {
+                        let buf = v.to_le_bytes();
+                        if let Ok((val, _)) = (self.decode_fn)(&buf) {
+                            result = val;
                         }
                     }
-                    crate::unknown_fields::UnknownFieldData::LengthDelimited(bytes) => {
-                        if self.wire_type == WireType::LengthDelimited {
-                            if let Ok((val, _)) = (self.decode_fn)(bytes) {
-                                result = val;
-                            }
+                    crate::unknown_fields::UnknownFieldData::LengthDelimited(bytes)
+                        if self.wire_type == WireType::LengthDelimited =>
+                    {
+                        if let Ok((val, _)) = (self.decode_fn)(bytes) {
+                            result = val;
                         }
                     }
                     _ => {}
