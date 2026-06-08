@@ -38,6 +38,9 @@ Options:
       --rust_out <DIR>               Generate prost-compatible Rust code to DIR
       --runtime_out <DIR>            Generate runtime-backed Rust code to DIR
       --runtime_out_json             Enable serde JSON derives in runtime codegen
+      --ts_out <DIR>                 Generate TypeScript/Node.js model code to DIR
+      --nodejs_out <DIR>             Alias for --ts_out
+      --python_out <DIR>             Generate Python dataclass model code to DIR
       --dump-schema                 Dump parsed schema to stderr
   -h, --help                        Show this help message"
     );
@@ -48,6 +51,8 @@ struct ParsedArgs {
     descriptor_set_out: Option<PathBuf>,
     rust_out: Option<PathBuf>,
     runtime_out: Option<PathBuf>,
+    ts_out: Option<PathBuf>,
+    python_out: Option<PathBuf>,
     runtime_out_json: bool,
     include_imports: bool,
     include_source_info: bool,
@@ -60,6 +65,8 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
     let mut descriptor_set_out = None;
     let mut rust_out = None;
     let mut runtime_out = None;
+    let mut ts_out = None;
+    let mut python_out = None;
     let mut runtime_out_json = false;
     let mut include_imports = false;
     let mut include_source_info = false;
@@ -107,6 +114,20 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                     .ok_or_else(|| format!("{} requires an argument", arg))?;
                 runtime_out = Some(PathBuf::from(path));
             }
+            "--ts_out" | "--nodejs_out" => {
+                i += 1;
+                let path = args
+                    .get(i)
+                    .ok_or_else(|| format!("{} requires an argument", arg))?;
+                ts_out = Some(PathBuf::from(path));
+            }
+            "--python_out" => {
+                i += 1;
+                let path = args
+                    .get(i)
+                    .ok_or_else(|| format!("{} requires an argument", arg))?;
+                python_out = Some(PathBuf::from(path));
+            }
             "--runtime_out_json" => {
                 runtime_out_json = true;
             }
@@ -124,6 +145,15 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
             }
             _ if arg.starts_with("--runtime_out=") => {
                 runtime_out = Some(PathBuf::from(&arg["--runtime_out=".len()..]));
+            }
+            _ if arg.starts_with("--ts_out=") => {
+                ts_out = Some(PathBuf::from(&arg["--ts_out=".len()..]));
+            }
+            _ if arg.starts_with("--nodejs_out=") => {
+                ts_out = Some(PathBuf::from(&arg["--nodejs_out=".len()..]));
+            }
+            _ if arg.starts_with("--python_out=") => {
+                python_out = Some(PathBuf::from(&arg["--python_out=".len()..]));
             }
             _ if arg.starts_with('-') => {
                 return Err(format!("unknown flag: {}", arg));
@@ -148,6 +178,8 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         descriptor_set_out,
         rust_out,
         runtime_out,
+        ts_out,
+        python_out,
         runtime_out_json,
         include_imports,
         include_source_info,
@@ -246,10 +278,42 @@ fn run(args: ParsedArgs) -> Result<(), AnalyzeError> {
         );
     }
 
+    // TypeScript/Node.js model codegen
+    if let Some(ref out_dir) = args.ts_out {
+        let files = protoc_rs_codegen::generate_typescript(&fds).map_err(|e| AnalyzeError {
+            message: format!("typescript codegen failed: {}", e),
+            file: None,
+            span: None,
+        })?;
+        write_codegen_files(out_dir, &files)?;
+        eprintln!(
+            "Generated {} TypeScript file(s) in {} (Node.js backend)",
+            files.len(),
+            out_dir.display()
+        );
+    }
+
+    // Python dataclass model codegen
+    if let Some(ref out_dir) = args.python_out {
+        let files = protoc_rs_codegen::generate_python(&fds).map_err(|e| AnalyzeError {
+            message: format!("python codegen failed: {}", e),
+            file: None,
+            span: None,
+        })?;
+        write_codegen_files(out_dir, &files)?;
+        eprintln!(
+            "Generated {} Python file(s) in {}",
+            files.len(),
+            out_dir.display()
+        );
+    }
+
     if args.descriptor_set_out.is_none()
         && !args.dump_schema
         && args.rust_out.is_none()
         && args.runtime_out.is_none()
+        && args.ts_out.is_none()
+        && args.python_out.is_none()
     {
         eprintln!(
             "Parsed {} file(s) successfully ({} total with imports)",

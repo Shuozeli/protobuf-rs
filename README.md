@@ -30,6 +30,14 @@ Zero dependency on `protoc` or any C++ code -- parses `.proto` files, resolves t
 - Generates `prost`-compatible Rust structs with derive macros
 - Optional gRPC service stubs via [pure-grpc-rs](https://github.com/shuozeli/pure-grpc-rs)
 
+**TypeScript/Node.js Backend** (`--ts_out`, `--nodejs_out`)
+- Generates dependency-free TypeScript model interfaces and enums
+- Preserves proto2/proto3 optionality, repeated fields, maps, nested messages, oneofs, enum aliases, and keyword-safe identifiers
+
+**Python Backend** (`--python_out`)
+- Generates dependency-free Python dataclass models and `IntEnum` enums
+- Preserves proto2/proto3 optionality, repeated fields, maps, nested messages, oneofs, enum aliases, and keyword-safe identifiers
+
 ## Crate Structure
 
 | Crate | Description |
@@ -41,7 +49,7 @@ Zero dependency on `protoc` or any C++ code -- parses `.proto` files, resolves t
 | `runtime` | Wire format, `Message` trait, views, serde, extensions |
 | `wkt` | Pre-generated well-known types for the runtime backend |
 | `build` | `build.rs` helper for compile-time code generation |
-| `codegen` | Rust code generation (prost + runtime backends) |
+| `codegen` | Rust, TypeScript/Node.js, and Python code generation |
 | `annotator` | Binary walker with byte-level annotation |
 | `proto-gen` | Random `.proto` schema + binary data generator |
 | `conformance` | Real-world `.proto` conformance tests |
@@ -71,7 +79,35 @@ cargo run -- -I src/ --runtime_out out/ --runtime_out_json file.proto
 
 # Generate prost-compatible Rust code
 cargo run -- -I src/ --rust_out out/ file.proto
+
+# Generate TypeScript/Node.js model code
+cargo run -- -I src/ --ts_out out/ file.proto
+
+# Same TypeScript backend, named for Node.js build pipelines
+cargo run -- -I src/ --nodejs_out out/ file.proto
+
+# Generate Python dataclass model code
+cargo run -- -I src/ --python_out out/ file.proto
+
+# Generate multiple language outputs in one invocation
+cargo run -- -I src/ --runtime_out out/rust --ts_out out/ts --python_out out/py file.proto
 ```
+
+## Language Codegen Usage
+
+`protoc-rs` can emit several language targets from the same analyzed descriptor set.
+
+| Flag | Output | Runtime dependency | Notes |
+|------|--------|--------------------|-------|
+| `--runtime_out <DIR>` | `package.rs` | `protoc-rs-runtime` | Full Rust wire encode/decode backend with owned and zero-copy view types |
+| `--rust_out <DIR>` | `package.rs` | `prost` | Prost-compatible Rust structs and enums |
+| `--ts_out <DIR>` | `package.ts` | none | TypeScript model interfaces, enums, oneof unions, maps, repeated fields, and keyword-safe names |
+| `--nodejs_out <DIR>` | `package.ts` | none | Alias for `--ts_out`; useful when build scripts name the Node.js target explicitly |
+| `--python_out <DIR>` | `package.py` | Python standard library | Python `dataclass(slots=True)` models and `IntEnum` enums |
+
+For package-less `.proto` files, the output name is derived from the proto path. For example, `api/user.proto` emits `api.user.ts`, `api.user.py`, or `api.user.rs`.
+
+The TypeScript/Node.js and Python backends generate typed model code only. They preserve schema shape and defaults for application code and tooling, but they do not include protobuf wire encode/decode runtimes.
 
 ## Using the Runtime Backend
 
