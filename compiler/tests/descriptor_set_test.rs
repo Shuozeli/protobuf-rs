@@ -423,3 +423,90 @@ message Msg { string name = 1; }
         "file options: output differs from protoc"
     );
 }
+
+/// Commented source locations as (path, leading, trailing, detached), with
+/// comment text trimmed: protobuf-rs drops the space after `//` that protoc
+/// keeps, a separate formatting difference this check does not cover.
+fn commented_locations(bytes: &[u8]) -> Vec<(Vec<i32>, String, String, Vec<String>)> {
+    use prost::Message as _;
+    let fds = prost_types::FileDescriptorSet::decode(bytes).unwrap();
+    let trim = |text: &str| text.trim().to_string();
+    let mut out: Vec<_> = fds
+        .file
+        .iter()
+        .filter_map(|file| file.source_code_info.as_ref())
+        .flat_map(|info| info.location.iter())
+        .filter(|loc| {
+            loc.leading_comments.is_some()
+                || loc.trailing_comments.is_some()
+                || !loc.leading_detached_comments.is_empty()
+        })
+        .map(|loc| {
+            (
+                loc.path.clone(),
+                trim(loc.leading_comments.as_deref().unwrap_or("")),
+                trim(loc.trailing_comments.as_deref().unwrap_or("")),
+                loc.leading_detached_comments
+                    .iter()
+                    .map(|c| trim(c))
+                    .collect(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn cross_compat_oneof_comments_attach_to_the_same_locations_as_protoc() {
+    if !has_protoc() {
+        eprintln!("protoc not found, skipping cross-compat test");
+        return;
+    }
+    // Arrange
+    let proto = r#"syntax = "proto3";
+package test;
+message Event {
+  // Leading comment for payload
+  oneof payload {
+    // Trailing comment for payload
+
+    // Detached before text
+
+    // Leading comment for text
+    string text = 1; // Trailing comment for text
+    // Leading comment for code
+    int32 code = 2;
+  }
+  // Leading comment for after
+  int32 after = 3;
+}
+"#;
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("test.proto"), proto).unwrap();
+    let out_path = tmp.path().join("out.pb");
+    let output = Command::new("protoc")
+        .arg(format!("--proto_path={}", tmp.path().display()))
+        .arg("--include_source_info")
+        .arg(format!("--descriptor_set_out={}", out_path.display()))
+        .arg(tmp.path().join("test.proto"))
+        .output()
+        .expect("failed to run protoc");
+    assert!(
+        output.status.success(),
+        "protoc failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let protoc_bytes = std::fs::read(&out_path).unwrap();
+    let resolver = FsResolver::new(vec![tmp.path().to_path_buf()]);
+
+    // Act
+    let fds = analyze_files(&["test.proto"], &resolver).unwrap();
+    let our_bytes = serialize_descriptor_set(&fds);
+
+    // Assert
+    assert_eq!(
+        commented_locations(&our_bytes),
+        commented_locations(&protoc_bytes)
+    );
+}

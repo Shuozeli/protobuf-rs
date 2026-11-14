@@ -41,6 +41,26 @@ pub struct ParseResult {
     pub warnings: Vec<ParseError>,
 }
 
+/// Comments attached to one declaration, collected in source order so that a
+/// declaration recorded later (such as a oneof member field, whose message
+/// field index is only known after the oneof) keeps its own comments.
+struct DeclComments {
+    leading: Option<String>,
+    trailing: Option<String>,
+    detached: Vec<String>,
+}
+
+/// A parsed `oneof` block: the declaration, the trailing comment after its
+/// `{`, its member fields (with their comments, in the same order) and any
+/// group messages declared inside it.
+struct ParsedOneof {
+    decl: OneofDescriptorProto,
+    trailing: Option<String>,
+    fields: Vec<FieldDescriptorProto>,
+    field_comments: Vec<DeclComments>,
+    nested: Vec<DescriptorProto>,
+}
+
 struct Parser {
     tokens: Vec<Token>,
     comments: Vec<Token>,
@@ -172,17 +192,40 @@ impl Parser {
         (leading, detached)
     }
 
-    /// Collect a trailing comment on the same line as `decl_end_line` (0-based).
+    /// Collect the trailing comment of a declaration whose last token is on
+    /// `decl_end_line` (0-based), following protoc's rules: a line comment on
+    /// that same line, or a comment block starting on the next line that is
+    /// followed by a blank line (otherwise it leads the next declaration).
     fn collect_trailing_comment(&mut self, decl_end_line: usize) -> Option<String> {
-        if self.comment_cursor < self.comments.len() {
-            let c = &self.comments[self.comment_cursor];
-            let c_start_line = c.span.start.line - 1;
-            if c_start_line == decl_end_line && c.kind == TokenKind::LineComment {
-                self.comment_cursor += 1;
-                return Some(format_comment(&c.text, false));
-            }
+        let first = self.comments.get(self.comment_cursor)?;
+        let first_line = first.span.start.line - 1;
+        if first_line == decl_end_line && first.kind == TokenKind::LineComment {
+            self.comment_cursor += 1;
+            return Some(format_comment(&first.text, false));
         }
-        None
+        if first_line != decl_end_line + 1 {
+            return None;
+        }
+        let mut next = self.comment_cursor;
+        let mut block_end_line = decl_end_line;
+        let mut text = String::new();
+        while let Some(c) = self.comments.get(next) {
+            if c.span.start.line - 1 != block_end_line + 1 {
+                break;
+            }
+            text.push_str(&format_comment(&c.text, c.kind == TokenKind::BlockComment));
+            block_end_line = c.span.end.line - 1;
+            next += 1;
+        }
+        let next_comment_line = self.comments.get(next).map(|c| c.span.start.line - 1);
+        let next_token_line = self.peek().span.start.line - 1;
+        let following = next_comment_line.map_or(next_token_line, |line| line.min(next_token_line));
+        if following > block_end_line + 1 {
+            self.comment_cursor = next;
+            Some(text)
+        } else {
+            None
+        }
     }
 
     fn expect(&mut self, kind: &TokenKind) -> Result<Token, ParseError> {
@@ -926,18 +969,34 @@ impl Parser {
                 let oneof_idx = msg.oneof_decl.len() as i32;
                 let field_offset = msg.field.len() as i32;
                 let start = self.peek().span;
+                let (leading, detached) = self.collect_leading_comments(start.start.line - 1);
                 self.source_info.push_index(fnum::MSG_ONEOF_DECL, oneof_idx);
-                let (oneof, fields, nested_msgs) = self.parse_oneof(oneof_idx)?;
+                let ParsedOneof {
+                    decl: oneof,
+                    trailing,
+                    fields,
+                    field_comments,
+                    nested: nested_msgs,
+                } = self.parse_oneof(oneof_idx)?;
                 let end = self.prev_span();
-                self.source_info
-                    .add_location(Span::new(start.start, end.end));
+                self.source_info.add_location_with_comments(
+                    Span::new(start.start, end.end),
+                    leading,
+                    trailing,
+                    detached,
+                );
                 self.source_info.pop_index();
                 // Record field spans for oneof fields (at message level, not oneof level)
-                for (i, f) in fields.iter().enumerate() {
+                for (i, (f, comments)) in fields.iter().zip(field_comments).enumerate() {
                     if let Some(sp) = f.source_span {
                         self.source_info
                             .push_index(fnum::MSG_FIELD, field_offset + i as i32);
-                        self.source_info.add_location(sp);
+                        self.source_info.add_location_with_comments(
+                            sp,
+                            comments.leading,
+                            comments.trailing,
+                            comments.detached,
+                        );
                         self.source_info.pop_index();
                     }
                 }
@@ -1375,17 +1434,7 @@ impl Parser {
 
     // -- oneof --
 
-    fn parse_oneof(
-        &mut self,
-        oneof_index: i32,
-    ) -> Result<
-        (
-            OneofDescriptorProto,
-            Vec<FieldDescriptorProto>,
-            Vec<DescriptorProto>,
-        ),
-        ParseError,
-    > {
+    fn parse_oneof(&mut self, oneof_index: i32) -> Result<ParsedOneof, ParseError> {
         self.expect(&TokenKind::Oneof)?;
         let name_tok = self.peek().clone();
         let name = self.expect_ident()?;
@@ -1394,6 +1443,7 @@ impl Parser {
         self.source_info.add_location(name_tok.span);
         self.source_info.pop();
         self.expect(&TokenKind::LBrace)?;
+        let trailing = self.collect_trailing_comment(self.prev_span().end.line - 1);
 
         let oneof = OneofDescriptorProto {
             name: Some(name),
@@ -1401,6 +1451,7 @@ impl Parser {
         };
 
         let mut fields = Vec::new();
+        let mut field_comments = Vec::new();
         let mut nested = Vec::new();
         while !self.at(&TokenKind::RBrace) && !self.at_eof() {
             if self.at(&TokenKind::Option) {
@@ -1433,23 +1484,36 @@ impl Parser {
                     });
                 }
             }
+            let (leading, detached) =
+                self.collect_leading_comments(self.peek().span.start.line - 1);
             // Groups can appear in oneof without a label
-            if self.at(&TokenKind::Group) {
-                let (mut field, group_msg) = self.parse_field_or_group()?;
-                field.oneof_index = Some(oneof_index);
-                fields.push(field);
+            let mut field = if self.at(&TokenKind::Group) {
+                let (field, group_msg) = self.parse_field_or_group()?;
                 if let Some(g) = group_msg {
                     nested.push(g);
                 }
-                continue;
-            }
-            let mut field = self.parse_oneof_field()?;
+                field
+            } else {
+                self.parse_oneof_field()?
+            };
+            let trailing = self.collect_trailing_comment(self.prev_span().end.line - 1);
             field.oneof_index = Some(oneof_index);
             fields.push(field);
+            field_comments.push(DeclComments {
+                leading,
+                trailing,
+                detached,
+            });
         }
 
         self.expect(&TokenKind::RBrace)?;
-        Ok((oneof, fields, nested))
+        Ok(ParsedOneof {
+            decl: oneof,
+            trailing,
+            fields,
+            field_comments,
+            nested,
+        })
     }
 
     fn parse_oneof_field(&mut self) -> Result<FieldDescriptorProto, ParseError> {
