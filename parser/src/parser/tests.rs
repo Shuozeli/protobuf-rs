@@ -1430,3 +1430,79 @@ fn source_info_method_comments() {
         "method leading comment"
     );
 }
+
+const ONEOF_WITH_COMMENTS: &str = concat!(
+    "syntax = \"proto3\";\n",
+    "message Event {\n",
+    "  // Leading comment for payload\n",
+    "  oneof payload {\n",
+    "    // Trailing comment for payload (protoc: next line, then a blank line)\n",
+    "\n",
+    "    // Leading comment for text\n",
+    "    string text = 1; // Trailing comment for text\n",
+    "    // Leading comment for code\n",
+    "    int32 code = 2;\n",
+    "  }\n",
+    "  int32 after = 3;\n",
+    "}\n",
+);
+
+#[test]
+fn source_info_oneof_declaration_keeps_its_leading_and_trailing_comments() {
+    // Arrange
+    let source = ONEOF_WITH_COMMENTS;
+
+    // Act
+    let file = parse(source).unwrap();
+
+    // Assert: oneof_decl[0] of message[0] is path [4, 0, 8, 0]
+    let loc = find_location_full(&file, &[4, 0, 8, 0]).expect("oneof location");
+    assert_eq!(
+        loc.leading_comments.as_deref(),
+        Some("Leading comment for payload\n")
+    );
+    assert_eq!(
+        loc.trailing_comments.as_deref(),
+        Some("Trailing comment for payload (protoc: next line, then a blank line)\n")
+    );
+}
+
+#[test]
+fn source_info_oneof_member_fields_keep_their_comments() {
+    // Arrange
+    let source = ONEOF_WITH_COMMENTS;
+
+    // Act
+    let file = parse(source).unwrap();
+
+    // Assert: oneof members are message fields [4, 0, 2, i]
+    let text = find_location_full(&file, &[4, 0, 2, 0]).expect("text location");
+    assert_eq!(
+        text.leading_comments.as_deref(),
+        Some("Leading comment for text\n")
+    );
+    assert_eq!(
+        text.trailing_comments.as_deref(),
+        Some("Trailing comment for text\n")
+    );
+    assert!(text.leading_detached_comments.is_empty());
+    let code = find_location_full(&file, &[4, 0, 2, 1]).expect("code location");
+    assert_eq!(
+        code.leading_comments.as_deref(),
+        Some("Leading comment for code\n")
+    );
+}
+
+#[test]
+fn source_info_field_after_oneof_does_not_take_oneof_comments() {
+    // Arrange
+    let source = ONEOF_WITH_COMMENTS;
+
+    // Act
+    let file = parse(source).unwrap();
+
+    // Assert
+    let after = find_location_full(&file, &[4, 0, 2, 2]).expect("after location");
+    assert_eq!(after.leading_comments, None);
+    assert!(after.leading_detached_comments.is_empty());
+}
