@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use protoc_rs_schema::*;
 
-use codegen_core::CodeWriter;
+use crate::code_writer::CodeWriter;
 
 /// Generate Rust code for all files in a `FileDescriptorSet`.
 ///
@@ -69,16 +69,6 @@ fn generate_file(file: &FileDescriptorProto) -> Result<String, CodeGenError> {
         gen.w.blank();
     }
 
-    // gRPC services (when grpc feature is enabled)
-    #[cfg(feature = "grpc")]
-    {
-        let service_code = crate::service_gen::generate_services(file)?;
-        if !service_code.is_empty() {
-            gen.w.blank();
-            gen.w.line(&service_code);
-        }
-    }
-
     Ok(gen.w.finish())
 }
 
@@ -87,8 +77,6 @@ pub enum CodeGenError {
     MissingFieldName,
     MissingMessageName,
     MissingEnumName,
-    #[cfg(feature = "grpc")]
-    ServiceGen(String),
 }
 
 impl std::fmt::Display for CodeGenError {
@@ -97,8 +85,6 @@ impl std::fmt::Display for CodeGenError {
             Self::MissingFieldName => write!(f, "missing field name in message"),
             Self::MissingMessageName => write!(f, "missing message name"),
             Self::MissingEnumName => write!(f, "missing enum name"),
-            #[cfg(feature = "grpc")]
-            Self::ServiceGen(e) => write!(f, "gRPC service generation error: {e}"),
         }
     }
 }

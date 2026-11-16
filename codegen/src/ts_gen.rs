@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
 use protoc_rs_schema::*;
 
-use codegen_core::CodeWriter;
+use crate::code_writer::CodeWriter;
 
 use crate::rust_gen::CodeGenError;
 
